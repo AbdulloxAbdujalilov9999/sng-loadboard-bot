@@ -1,0 +1,29 @@
+# One-click deploy on Render (https://render.com): New + > Blueprint > pick this repository.
+# This bot has no database of its own - it shares the sng-loadboard API's Postgres - so there is no
+# `databases:` section here. You will be asked for every secret marked "sync: false" below; get
+# DATABASE_URL, API_BASE_URL (internal) and PUBLIC_WEB_URL (public) from that other Render service.
+services:
+  - type: worker
+    name: sng-loadboard-bot
+    runtime: docker
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false            # from @BotFather on Telegram
+      - key: DATABASE_URL
+        sync: false            # same Postgres the sng-loadboard API uses (its "External Database URL")
+      - key: DATABASE_SSL
+        value: "true"          # managed Postgres (e.g. Render's) requires TLS
+      - key: FIREBASE_WEB_API_KEY
+        value: AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg   # public by design - sng-loadboard's web/js/config.js
+      - key: API_BASE_URL
+        sync: false            # the sng-one web service's Render-internal address, e.g. http://sng-one:10000
+                                # (Render shows this under that service -> Connect -> Internal)
+      - key: PUBLIC_WEB_URL
+        sync: false            # that service's PUBLIC address, e.g. https://sng-one.onrender.com or your domain
+      - key: BOT_ENCRYPTION_KEY
+        sync: false            # 32 random bytes, base64: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      - key: BOT_BROADCAST_LANG
+        value: en               # en/ru/uz - language used for messages broadcast to groups

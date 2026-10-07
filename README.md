@@ -79,10 +79,20 @@ docker run --env-file .env sng-loadboard-bot
 
 ### Render
 
-Create a **Background Worker** (not a Web Service - this process has no HTTP server), point it at
-this repo, runtime **Docker**, and set the environment variables from `.env.example`. Make sure
-`DATABASE_URL` points at the same Postgres instance as the loadboard API's Render service, and
-`PUBLIC_WEB_URL` is that service's **public** `https://` address (not its internal one).
+Two ways to deploy, both end up with the same thing (a Background Worker, since this process has
+no HTTP server):
+
+- **Blueprint** (easiest): New + → Blueprint → pick this repo → leave the Blueprint path as the
+  default (`render.yaml`, already at the repo root). It will ask for the secrets marked
+  `sync: false` in [`render.yaml`](render.yaml): `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`,
+  `API_BASE_URL`, `PUBLIC_WEB_URL`, `BOT_ENCRYPTION_KEY`.
+- **Manual**: New + → Background Worker → pick this repo, runtime **Docker**, and set the
+  environment variables from `.env.example` yourself.
+
+Either way: `DATABASE_URL` must be the same Postgres instance as the loadboard API's Render
+service (copy its "External Database URL" from that service's database page), `API_BASE_URL` is
+that API service's Render-internal address, and `PUBLIC_WEB_URL` is its **public** `https://`
+address (not the internal one) - that's what makes the "view this load" links actually open.
 
 ## Security notes
 
