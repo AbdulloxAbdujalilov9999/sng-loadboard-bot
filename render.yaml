@@ -27,3 +27,33 @@ services:
         sync: false            # 32 random bytes, base64: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
       - key: BOT_BROADCAST_LANG
         value: en               # en/ru/uz - language used for messages broadcast to groups
+
+  # The Telegram INGEST bot: a separate bot added to big public freight-posting groups (not your
+  # own broadcast chats above). Reads every message, runs it through the same AI parser the web
+  # app's "paste from Telegram" screen uses, and posts matching loads automatically. See
+  # README.md "Ingestion bot" before enabling - needs a second @BotFather bot with privacy mode
+  # disabled, and a dedicated member account you sign up and approve on the web app first.
+  - type: worker
+    name: sng-loadboard-ingest-bot
+    runtime: docker
+    dockerCommand: node src/ingestIndex.js
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false            # same Postgres the sng-loadboard API uses (its "External Database URL")
+      - key: DATABASE_SSL
+        value: "true"          # managed Postgres (e.g. Render's) requires TLS
+      - key: API_BASE_URL
+        sync: false            # same internal address as the broadcast bot's API_BASE_URL above
+      - key: TELEGRAM_INGEST_BOT_TOKEN
+        sync: false            # a SECOND @BotFather bot - run /setprivacy -> Disable on it first
+      - key: FIREBASE_WEB_API_KEY
+        value: AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg   # public by design - sng-loadboard's web/js/config.js
+      - key: INGEST_SERVICE_EMAIL
+        sync: false            # the dedicated member account's e-mail (sign up + approve it first)
+      - key: INGEST_SERVICE_PASSWORD
+        sync: false            # that account's password
+      - key: INGEST_ADMIN_TG_IDS
+        sync: false            # your Telegram user id (from @userinfobot), comma-separated if more than one

@@ -1,7 +1,7 @@
 {
   "name": "sng-loadboard-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for SNG ONE (sng-loadboard): link an account, post loads from a chat, and broadcast every new load to every group the bot is in.",
+  "description": "Telegram bots for SNG ONE (sng-loadboard): link an account, post loads from a chat, broadcast every new load to every group the bot is in, and (separately) auto-import loads from public source groups.",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,6 +10,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch --env-file-if-exists=.env src/index.js",
+    "ingest": "node src/ingestIndex.js",
+    "ingest:dev": "node --watch --env-file-if-exists=.env src/ingestIndex.js",
     "test": "node --test test/**/*.test.js"
   },
   "dependencies": {

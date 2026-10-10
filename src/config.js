@@ -1,5 +1,5 @@
-// Environment for this bot. It is a separate process from the sng-loadboard API with its own,
-// smaller set of required secrets (it never needs OWNER_EMAILS, GEMINI_API_KEY, etc.).
+// Bot-specific environment. Kept separate from server/src/config.js: the bot is a different
+// process with different required secrets (it must never need OWNER_EMAILS, GEMINI_API_KEY, etc.).
 import { LANGS, DEFAULT_LANG } from './i18n.js';
 
 const truthy = (v, d = false) =>
@@ -36,7 +36,7 @@ export function loadBotConfig(env = process.env) {
   }
   if (!cfg.botToken) problems.push('TELEGRAM_BOT_TOKEN is required (create a bot with @BotFather and paste its token)');
   if (!cfg.databaseUrl) problems.push('DATABASE_URL is required (same database as the API)');
-  if (!cfg.firebaseApiKey) problems.push('FIREBASE_WEB_API_KEY is required (the sng-loadboard web app\'s public Firebase "apiKey" - see its web/js/config.js)');
+  if (!cfg.firebaseApiKey) problems.push('FIREBASE_WEB_API_KEY is required (the "apiKey" from web/js/config.js - it is public by design)');
   if (!cfg.encryptionKey) problems.push('BOT_ENCRYPTION_KEY is required: 32 random bytes, base64. Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"');
   else if (Buffer.from(cfg.encryptionKey, 'base64').length !== 32) problems.push('BOT_ENCRYPTION_KEY must decode (base64) to exactly 32 bytes');
   if (problems.length) throw new Error('Invalid bot configuration:\n - ' + problems.join('\n - '));

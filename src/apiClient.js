@@ -32,6 +32,9 @@ export function makeApiClient({ baseUrl }) {
   const searchCities = (idToken, q, limit = 6) =>
     request(idToken, 'GET', `/api/cities?q=${encodeURIComponent(q)}&limit=${limit}`);
   const createLoad = (idToken, body) => request(idToken, 'POST', '/api/loads', body);
+  // Same endpoint the web app's "paste from Telegram/WhatsApp" screen calls - see server/src/routes/ai.js.
+  // Used by the ingest bot (ingestPipeline.js) to turn a group message into structured load drafts.
+  const parseLoads = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-loads', { text });
 
-  return { getMe, searchCities, createLoad };
+  return { getMe, searchCities, createLoad, parseLoads };
 }
