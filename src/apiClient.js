@@ -17,7 +17,7 @@ export function makeApiClient({ baseUrl }) {
   async function request(idToken, method, path, body) {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      headers: { 'Content-Type': 'application/json', ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
@@ -36,5 +36,10 @@ export function makeApiClient({ baseUrl }) {
   // Used by the ingest bot (ingestPipeline.js) to turn a group message into structured load drafts.
   const parseLoads = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-loads', { text });
 
-  return { getMe, searchCities, createLoad, parseLoads };
+  // Phone + 4-digit PIN sign-in (server/src/routes/pin.js): the same door the web app uses. Returns { token, expiresAt }.
+  const pinLogin = (phone, pin) => request(null, 'POST', '/api/auth/pin/login', { phone, pin, purpose: 'bot' });
+  // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
+  const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
+
+  return { getMe, searchCities, createLoad, parseLoads, pinLogin, refreshSession };
 }

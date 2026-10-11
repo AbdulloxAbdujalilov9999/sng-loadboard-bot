@@ -70,6 +70,13 @@ export function makeStore(pool, crypto) {
     return rows.map((r) => r.chat_id);
   }
 
+  // Telegram accounts linked to a platform owner: they get a message when someone new signs up.
+  async function listOwnerTelegramIds() {
+    const { rows } = await pool.query(
+      `SELECT l.telegram_user_id FROM telegram_links l JOIN members m ON m.id = l.member_id WHERE m.role = 'owner' AND m.status = 'approved'`);
+    return rows.map((r) => r.telegram_user_id);
+  }
+
   async function countActiveChats() {
     const { rows: [{ n }] } = await pool.query(`SELECT count(*)::int AS n FROM telegram_chats WHERE status = 'active'`);
     return n;
@@ -91,6 +98,6 @@ export function makeStore(pool, crypto) {
 
   return {
     saveLink, getLinkByTelegramUserId, updateRefreshToken, removeLink, upsertChat, markChatRemoved,
-    listActiveChatIds, countActiveChats, getLanguage, setLanguage,
+    listActiveChatIds, listOwnerTelegramIds, countActiveChats, getLanguage, setLanguage,
   };
 }

@@ -3,14 +3,15 @@
 // falling back to English and then to the key itself so a missing translation never crashes a chat.
 
 export const LANGS = ['en', 'ru', 'uz'];
-export const DEFAULT_LANG = 'en';
+export const DEFAULT_LANG = 'uz'; // Uzbek unless Telegram says the person uses Russian
+const FALLBACK_LANG = 'en';   // a key missing from a language falls back to English
 
 export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha' };
 
 const DICT = {
   en: {
     welcome: "Welcome to SNG ONE.\n\n"
-      + "• /link your@email.com yourPassword - connect your loadboard account (DM only)\n"
+      + "• /link - connect your SNG ONE account with your phone number and 4-digit PIN (DM only)\n"
       + "• /postload - post a load here; it appears on the web board and is broadcast to every group this bot is in\n"
       + "• /mystatus - check your link\n"
       + "• /unlink - disconnect your account\n"
@@ -19,27 +20,27 @@ const DICT = {
     language_prompt: 'Choose a language:',
     language_set: 'Language set to English.',
     group_connected: 'Connected. Every new load posted on SNG ONE - from the web app or from /postload here - will be sent to this chat automatically.',
-    link_dm_only: "For your password's safety, DM me to link your account (tap my name, then Message).",
-    link_usage: 'Usage: /link your@email.com yourPassword\n\n(Use the same e-mail + password you use to sign in on the web app.)\n\nSigned up with Google or a phone number, so you have no password? On the website open Account → Sign-in & Security → "Email me a link to set a password", then /link again.',
+    link_dm_only: "To keep your PIN private, DM me to link your account (tap my name, then Message).",
+    link_usage: "Send /link and then your phone number and your 4-digit PIN.\nOr in one message: /link +998901234567 1234\n\nNo account yet? Sign up on the website with your phone number first, then come back. (Signed up with an e-mail? Use /linkemail your@email.com password.)",
     link_unreachable: 'Could not reach the loadboard right now - please try again in a moment.',
     link_unverified: 'Your e-mail is not confirmed yet. Open the confirmation link we e-mailed you (check Spam), then /link again.',
-    link_no_account: 'That account has no access request yet. Sign in on the web app and request access first, then come back and /link again.',
-    link_not_approved: 'Your access request is still "{status}". You\'ll be able to /link once an owner approves it.',
+    link_no_account: "No SNG ONE account for that number. Sign up on the website first, then /link again.",
+    link_not_approved: "This account cannot be linked right now (status: {status}).",
     link_success: 'Linked as {company} ✅\n\nTry /postload to post a load.',
     unlink_done: 'Unlinked. Your Telegram account no longer posts as any loadboard member.',
     unlink_none: 'You were not linked.',
-    mystatus_none: 'Not linked. Use /link your@email.com yourPassword (in DM).',
-    mystatus_linked: 'Linked as {company} ({email}) - status: {status}.',
+    mystatus_none: "Not linked. Send /link (in DM).",
+    mystatus_linked: "Linked as {company} ({login}) - status: {status}.",
     postload_dm_only: 'DM me and send /postload there - posting asks a few questions and may include contact details.',
-    postload_not_linked: 'Not linked yet. Use /link your@email.com yourPassword first.',
-    postload_session_error: 'Could not refresh your session - please /link again.',
+    postload_not_linked: "Not linked yet. Send /link first.",
+    postload_session_error: "Your session ended (e.g. the PIN was changed) - please /link again.",
     postload_unreachable: 'Could not reach the loadboard right now - please try again in a moment.',
     postload_not_approved: 'Your account is not approved to post right now.',
     generic_error: 'Something went wrong - please try again.',
 
     status_pending: 'pending',
-    status_approved: 'approved',
-    status_rejected: 'rejected',
+    status_approved: "active",
+    status_rejected: "blocked",
 
     fb_email_not_found: 'No account with that e-mail. Sign up on the web app first, or check the spelling.',
     fb_invalid_password: 'Wrong password.',
@@ -74,11 +75,11 @@ const DICT = {
     wiz_commodity_invalid: 'Please describe the cargo.',
     wiz_ask_notes: 'Any extra notes (payment terms, advance, etc.)? Send "-" to skip.',
     wiz_ask_contact_name: 'Contact name?',
-    wiz_ask_contact_phone: 'Contact phone?',
-    wiz_ask_contact_email: 'Contact e-mail?',
-    wiz_ask_contact_telegram: 'Contact Telegram @username?',
+    wiz_ask_contact_phone: "Contact phone? Send - to skip (a phone number OR a Telegram username is required).",
+    wiz_ask_contact_email: "Contact e-mail? Optional - send - to skip.",
+    wiz_ask_contact_telegram: "Contact Telegram @username? Send - to skip.",
     wiz_contact_use_profile_q: 'Use your profile contact info?\n{summary}',
-    wiz_contact_missing: "Your profile is missing some contact details, so let's fill them in for this load.",
+    wiz_contact_missing: "Your profile has no phone or Telegram yet, so let's enter contact info for this load.",
     wiz_contact_btn_use: 'Use these',
     wiz_contact_btn_manual: 'Enter different',
     wiz_contact_using_profile: 'Using your profile contact info.',
@@ -99,11 +100,25 @@ const DICT = {
     eq_F: 'Flatbed',
     eq_V: 'Box/Dry Van',
     eq_AC: 'Auto Carrier',
+    link_email_usage: "Usage: /linkemail your@email.com yourPassword\n\n(The e-mail + password you use to sign in on the website. Signed in with a phone? Use /link instead.)",
+    link_ask_phone: "Send the phone number of your SNG ONE account, or tap the button to share your Telegram number. (/cancel to stop)",
+    link_share_phone: "📱 Share my number",
+    link_contact_not_yours: "That is not your own number. Type the phone number of your SNG ONE account.",
+    link_bad_phone: "That does not look like a phone number. Send it with the country code, e.g. +998901234567.",
+    link_ask_pin: "Now send your 4-digit PIN. I delete your message right away.",
+    link_bad_pin: "The PIN is exactly 4 digits. Try again, or /cancel.",
+    link_pin_wrong: "Wrong phone number or PIN. Try the PIN again, or /cancel.\n\nNo PIN yet? Sign in on the website with your phone (SMS code) and choose one, then /link again.",
+    link_pin_wrong_final: "Wrong phone number or PIN. Send /link to start again.",
+    link_pin_locked: "Too many wrong PINs. Try again in {min} min, or reset your PIN on the website with an SMS code.",
+    link_blocked: "This account is blocked. Please contact the platform owner.",
+    link_cancelled: "Cancelled.",
+    wiz_contact_need_one: "Please give at least a phone number or a Telegram username so people can reach you.",
+    owner_new_member: "🆕 New member on SNG ONE: {name}\n{contact}",
   },
 
   ru: {
     welcome: 'Добро пожаловать в SNG ONE.\n\n'
-      + '• /link your@email.com пароль - привязать аккаунт биржи (только в личных сообщениях)\n'
+      + "• /link - привязать аккаунт SNG ONE по номеру телефона и 4-значному PIN (только в личных сообщениях)\n"
       + '• /postload - разместить груз прямо здесь; он появится на сайте и будет разослан во все группы, где есть этот бот\n'
       + '• /mystatus - проверить привязку аккаунта\n'
       + '• /unlink - отвязать аккаунт\n'
@@ -112,27 +127,27 @@ const DICT = {
     language_prompt: 'Выберите язык:',
     language_set: 'Установлен русский язык.',
     group_connected: 'Подключено. Каждый новый груз на SNG ONE - размещённый на сайте или через /postload здесь - будет автоматически отправлен в этот чат.',
-    link_dm_only: 'В целях безопасности пароля напишите мне в личные сообщения, чтобы привязать аккаунт (нажмите на моё имя, затем «Написать»).',
-    link_usage: 'Использование: /link your@email.com пароль\n\n(Укажите тот же e-mail и пароль, которыми вы входите на сайте.)\n\nВходите через Google или по телефону и пароля нет? На сайте откройте «Аккаунт → Вход и безопасность» → «Отправить ссылку для установки пароля», затем снова /link.',
+    link_dm_only: "Чтобы ваш PIN остался в тайне, напишите мне в личные сообщения (нажмите на моё имя, затем «Написать»).",
+    link_usage: "Отправьте /link, затем номер телефона и 4-значный PIN.\nИли одним сообщением: /link +998901234567 1234\n\nЕщё нет аккаунта? Сначала зарегистрируйтесь на сайте по номеру телефона и вернитесь. (Регистрировались по e-mail? Используйте /linkemail your@email.com пароль.)",
     link_unreachable: 'Не удаётся подключиться к бирже прямо сейчас - попробуйте через минуту.',
     link_unverified: 'Ваш e-mail ещё не подтверждён. Откройте ссылку подтверждения из письма (проверьте «Спам»), затем снова /link.',
-    link_no_account: 'У этого аккаунта ещё нет заявки на доступ. Сначала войдите на сайте и подайте заявку, затем снова выполните /link.',
-    link_not_approved: 'Ваша заявка на доступ пока «{status}». Команда /link станет доступна, как только владелец её одобрит.',
+    link_no_account: "Для этого номера нет аккаунта SNG ONE. Сначала зарегистрируйтесь на сайте, затем снова /link.",
+    link_not_approved: "Этот аккаунт сейчас нельзя привязать (статус: {status}).",
     link_success: 'Вы привязаны как {company} ✅\n\nПопробуйте /postload, чтобы разместить груз.',
     unlink_done: 'Отвязано. Ваш Telegram-аккаунт больше не публикует от имени какого-либо участника биржи.',
     unlink_none: 'Вы не были привязаны.',
-    mystatus_none: 'Не привязано. Используйте /link your@email.com пароль (в личных сообщениях).',
-    mystatus_linked: 'Вы привязаны как {company} ({email}) - статус: {status}.',
+    mystatus_none: "Не привязано. Отправьте /link (в личных сообщениях).",
+    mystatus_linked: "Вы привязаны как {company} ({login}) - статус: {status}.",
     postload_dm_only: 'Напишите мне в личные сообщения и отправьте /postload там - при размещении задаётся несколько вопросов, в том числе контактные данные.',
-    postload_not_linked: 'Аккаунт ещё не привязан. Сначала используйте /link your@email.com пароль.',
-    postload_session_error: 'Не удалось обновить сессию - выполните /link ещё раз.',
+    postload_not_linked: "Аккаунт ещё не привязан. Сначала отправьте /link.",
+    postload_session_error: "Сессия завершена (например, сменили PIN) - выполните /link ещё раз.",
     postload_unreachable: 'Не удаётся подключиться к бирже прямо сейчас - попробуйте через минуту.',
     postload_not_approved: 'Сейчас ваш аккаунт не одобрен для размещения грузов.',
     generic_error: 'Что-то пошло не так - попробуйте ещё раз.',
 
     status_pending: 'на рассмотрении',
-    status_approved: 'одобрено',
-    status_rejected: 'отклонено',
+    status_approved: "активен",
+    status_rejected: "заблокирован",
 
     fb_email_not_found: 'Аккаунт с таким e-mail не найден. Сначала зарегистрируйтесь на сайте или проверьте написание.',
     fb_invalid_password: 'Неверный пароль.',
@@ -167,11 +182,11 @@ const DICT = {
     wiz_commodity_invalid: 'Опишите, пожалуйста, груз.',
     wiz_ask_notes: 'Дополнительные примечания (условия оплаты, аванс и т.д.)? Отправьте «-», чтобы пропустить.',
     wiz_ask_contact_name: 'Имя контактного лица?',
-    wiz_ask_contact_phone: 'Контактный телефон?',
-    wiz_ask_contact_email: 'Контактный e-mail?',
-    wiz_ask_contact_telegram: 'Telegram для связи (@username)?',
+    wiz_ask_contact_phone: "Контактный телефон? Отправьте -, чтобы пропустить (нужен телефон ИЛИ Telegram).",
+    wiz_ask_contact_email: "Контактный e-mail? Необязательно - отправьте -, чтобы пропустить.",
+    wiz_ask_contact_telegram: "Контактный Telegram @username? Отправьте -, чтобы пропустить.",
     wiz_contact_use_profile_q: 'Использовать контактные данные из профиля?\n{summary}',
-    wiz_contact_missing: 'В вашем профиле не хватает некоторых контактных данных, поэтому укажем их для этого груза.',
+    wiz_contact_missing: "В профиле нет телефона или Telegram, поэтому введём контакты для этого груза.",
     wiz_contact_btn_use: 'Использовать эти',
     wiz_contact_btn_manual: 'Указать другие',
     wiz_contact_using_profile: 'Используются контактные данные из профиля.',
@@ -192,11 +207,25 @@ const DICT = {
     eq_F: 'Открытый/Шаланда',
     eq_V: 'Фургон',
     eq_AC: 'Автовоз',
+    link_email_usage: "Использование: /linkemail your@email.com пароль\n\n(E-mail и пароль, с которыми вы входите на сайте. Входите по телефону? Используйте /link.)",
+    link_ask_phone: "Отправьте номер телефона вашего аккаунта SNG ONE или нажмите кнопку, чтобы поделиться номером из Telegram. (/cancel — отмена)",
+    link_share_phone: "📱 Поделиться номером",
+    link_contact_not_yours: "Это не ваш номер. Введите номер телефона вашего аккаунта SNG ONE.",
+    link_bad_phone: "Это не похоже на номер телефона. Отправьте его с кодом страны, например +998901234567.",
+    link_ask_pin: "Теперь отправьте ваш 4-значный PIN. Я сразу удалю это сообщение.",
+    link_bad_pin: "PIN состоит ровно из 4 цифр. Попробуйте ещё раз или /cancel.",
+    link_pin_wrong: "Неверный номер или PIN. Введите PIN ещё раз или /cancel.\n\nЕщё нет PIN? Войдите на сайте по телефону (SMS-код) и задайте его, затем снова /link.",
+    link_pin_wrong_final: "Неверный номер или PIN. Отправьте /link, чтобы начать заново.",
+    link_pin_locked: "Слишком много неверных PIN. Повторите через {min} мин. или сбросьте PIN на сайте через SMS-код.",
+    link_blocked: "Этот аккаунт заблокирован. Свяжитесь с владельцем платформы.",
+    link_cancelled: "Отменено.",
+    wiz_contact_need_one: "Укажите хотя бы телефон или Telegram, чтобы с вами могли связаться.",
+    owner_new_member: "🆕 Новый участник SNG ONE: {name}\n{contact}",
   },
 
   uz: {
     welcome: "SNG ONE'ga xush kelibsiz.\n\n"
-      + "• /link your@email.com parol - birja hisobingizni ulash (faqat shaxsiy xabarda)\n"
+      + "• /link - SNG ONE hisobingizni telefon raqami va 4 xonali PIN-kod bilan ulash (faqat shaxsiy xabarda)\n"
       + '• /postload - shu yerda yuk joylash; u saytda paydo boʻladi va bot qoʻshilgan barcha guruhlarga yuboriladi\n'
       + '• /mystatus - ulanishni tekshirish\n'
       + '• /unlink - hisobni uzish\n'
@@ -205,27 +234,27 @@ const DICT = {
     language_prompt: 'Tilni tanlang:',
     language_set: "Til oʻzbekchaga oʻrnatildi.",
     group_connected: "Ulandi. SNG ONE'da joylangan har bir yangi yuk - saytdan boʻladimi yoki shu yerdagi /postload orqalimi - avtomatik ravishda shu chatga yuboriladi.",
-    link_dm_only: "Parolingiz xavfsizligi uchun hisobingizni ulash uchun menga shaxsiy xabar yozing (ismimni bosing, keyin Xabar yozish).",
-    link_usage: "Foydalanish: /link your@email.com parol\n\n(Saytga kirish uchun ishlatadigan e-pochta va parolingizni kiriting.)\n\nGoogle yoki telefon orqali kirasizmi va parolingiz yoʻqmi? Saytda «Hisob va sozlamalar → Kirish va xavfsizlik» → «Parol oʻrnatish uchun havolani yuborish» ni bosing, soʻng yana /link yuboring.",
+    link_dm_only: "PIN-kodingiz sir qolishi uchun menga shaxsiy xabar yozing (ismimni bosing, keyin «Xabar yozish»).",
+    link_usage: "/link yuboring, soʻng telefon raqamingiz va 4 xonali PIN-kodni kiriting.\nYoki bitta xabarda: /link +998901234567 1234\n\nHisobingiz yoʻqmi? Avval saytda telefon raqamingiz bilan roʻyxatdan oʻting, soʻng qaytib keling. (E-pochta bilan roʻyxatdan oʻtgansiz? /linkemail your@email.com parol buyrugʻidan foydalaning.)",
     link_unreachable: 'Hozir birjaga ulanib boʻlmadi - birozdan soʻng qayta urinib koʻring.',
     link_unverified: 'E-pochtangiz hali tasdiqlanmagan. Yuborilgan xatdagi tasdiqlash havolasini oching (“Spam” ni ham tekshiring), soʻng yana /link yuboring.',
-    link_no_account: "Bu hisobda hali kirish soʻrovi yoʻq. Avval saytda roʻyxatdan oʻting va kirishni soʻrang, soʻng yana /link buyrugʻini yuboring.",
-    link_not_approved: 'Kirish soʻrovingiz hali «{status}» holatida. Egasi tasdiqlagach, /link ishlaydi.',
+    link_no_account: "Bu raqam uchun SNG ONE hisobi yoʻq. Avval saytda roʻyxatdan oʻting, soʻng yana /link yuboring.",
+    link_not_approved: "Bu hisobni hozir ulab boʻlmaydi (holat: {status}).",
     link_success: '{company} sifatida ulandingiz ✅\n\nYuk joylash uchun /postload buyrugʻini sinab koʻring.',
     unlink_done: 'Uzildi. Telegram hisobingiz endi birjadagi hech bir aʼzo nomidan joylamaydi.',
     unlink_none: 'Siz ulanmagan edingiz.',
-    mystatus_none: 'Ulanmagan. /link your@email.com parol buyrugʻidan foydalaning (shaxsiy xabarda).',
-    mystatus_linked: '{company} ({email}) sifatida ulangansiz - holat: {status}.',
+    mystatus_none: "Ulanmagan. /link yuboring (shaxsiy xabarda).",
+    mystatus_linked: "{company} ({login}) sifatida ulangansiz - holat: {status}.",
     postload_dm_only: 'Menga shaxsiy xabar yozib, u yerda /postload yuboring - joylashda bir nechta savol beriladi, jumladan aloqa maʼlumotlari.',
-    postload_not_linked: 'Hali ulanmagansiz. Avval /link your@email.com parol buyrugʻidan foydalaning.',
-    postload_session_error: 'Seansni yangilab boʻlmadi - yana /link qiling.',
+    postload_not_linked: "Hali ulanmagansiz. Avval /link yuboring.",
+    postload_session_error: "Seans tugadi (masalan, PIN-kod oʻzgartirilgan) - yana /link qiling.",
     postload_unreachable: 'Hozir birjaga ulanib boʻlmadi - birozdan soʻng qayta urinib koʻring.',
     postload_not_approved: 'Hozircha hisobingiz yuk joylashga tasdiqlanmagan.',
     generic_error: 'Nimadir xato ketdi - qayta urinib koʻring.',
 
     status_pending: "koʻrib chiqilmoqda",
-    status_approved: 'tasdiqlangan',
-    status_rejected: 'rad etilgan',
+    status_approved: "faol",
+    status_rejected: "bloklangan",
 
     fb_email_not_found: "Bunday e-pochtali hisob topilmadi. Avval saytda roʻyxatdan oʻting yoki yozilishini tekshiring.",
     fb_invalid_password: "Parol notoʻgʻri.",
@@ -260,11 +289,11 @@ const DICT = {
     wiz_commodity_invalid: 'Iltimos, yukni tasvirlab bering.',
     wiz_ask_notes: "Qoʻshimcha izoh bormi (toʻlov shartlari, avans va h.k.)? Oʻtkazib yuborish uchun \"-\" yuboring.",
     wiz_ask_contact_name: "Aloqa uchun ism?",
-    wiz_ask_contact_phone: "Aloqa uchun telefon?",
-    wiz_ask_contact_email: 'Aloqa uchun e-pochta?',
-    wiz_ask_contact_telegram: "Aloqa uchun Telegram @username?",
+    wiz_ask_contact_phone: "Aloqa uchun telefon? Oʻtkazib yuborish uchun - yuboring (telefon YOKI Telegram kerak).",
+    wiz_ask_contact_email: "Aloqa uchun e-pochta? Ixtiyoriy - oʻtkazib yuborish uchun - yuboring.",
+    wiz_ask_contact_telegram: "Aloqa uchun Telegram @username? Oʻtkazib yuborish uchun - yuboring.",
     wiz_contact_use_profile_q: "Profilingizdagi aloqa maʼlumotlaridan foydalanilsinmi?\n{summary}",
-    wiz_contact_missing: "Profilingizda ayrim aloqa maʼlumotlari yetishmayapti, shuning uchun ularni shu yuk uchun kiritamiz.",
+    wiz_contact_missing: "Profilingizda telefon yoki Telegram yoʻq, shuning uchun shu yuk uchun aloqa maʼlumotlarini kiritamiz.",
     wiz_contact_btn_use: 'Shulardan foydalanish',
     wiz_contact_btn_manual: 'Boshqasini kiritish',
     wiz_contact_using_profile: 'Profildagi aloqa maʼlumotlaridan foydalanilmoqda.',
@@ -285,6 +314,20 @@ const DICT = {
     eq_F: 'Ochiq (Flatbed)',
     eq_V: 'Furgon',
     eq_AC: 'Avtovoz',
+    link_email_usage: "Foydalanish: /linkemail your@email.com parol\n\n(Saytga kirish uchun ishlatadigan e-pochta va parolingiz. Telefon orqali kirasizmi? /link dan foydalaning.)",
+    link_ask_phone: "SNG ONE hisobingizning telefon raqamini yuboring yoki Telegram raqamingizni ulashish tugmasini bosing. (/cancel — bekor qilish)",
+    link_share_phone: "📱 Raqamimni ulashish",
+    link_contact_not_yours: "Bu sizning raqamingiz emas. SNG ONE hisobingizning telefon raqamini yozing.",
+    link_bad_phone: "Bu telefon raqamiga oʻxshamaydi. Davlat kodi bilan yuboring, masalan +998901234567.",
+    link_ask_pin: "Endi 4 xonali PIN-kodingizni yuboring. Xabaringizni darhol oʻchirib qoʻyaman.",
+    link_bad_pin: "PIN-kod aynan 4 ta raqamdan iborat. Qayta urinib koʻring yoki /cancel.",
+    link_pin_wrong: "Telefon raqami yoki PIN-kod notoʻgʻri. PIN-kodni qayta kiriting yoki /cancel.\n\nHali PIN-kodingiz yoʻqmi? Saytga telefon orqali (SMS-kod) kirib, PIN-kod tanlang, soʻng yana /link yuboring.",
+    link_pin_wrong_final: "Telefon raqami yoki PIN-kod notoʻgʻri. Qaytadan boshlash uchun /link yuboring.",
+    link_pin_locked: "PIN-kod koʻp marta xato kiritildi. {min} daqiqadan soʻng urinib koʻring yoki saytda SMS-kod orqali PIN-kodni tiklang.",
+    link_blocked: "Bu hisob bloklangan. Platforma egasi bilan bogʻlaning.",
+    link_cancelled: "Bekor qilindi.",
+    wiz_contact_need_one: "Siz bilan bogʻlanish uchun kamida telefon raqami yoki Telegram foydalanuvchi nomini kiriting.",
+    owner_new_member: "🆕 SNG ONE'da yangi aʼzo: {name}\n{contact}",
   },
 };
 
@@ -297,7 +340,7 @@ export function pickLang(telegramLanguageCode) {
 
 export function t(lang, key, vars) {
   const dict = DICT[lang] ?? DICT[DEFAULT_LANG];
-  let s = dict[key] ?? DICT[DEFAULT_LANG][key] ?? key;
+  let s = dict[key] ?? DICT[FALLBACK_LANG][key] ?? key;
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
   return s;
 }

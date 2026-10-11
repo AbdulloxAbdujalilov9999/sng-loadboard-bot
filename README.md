@@ -15,9 +15,13 @@ a second bot" below.
 
 ## Broadcast bot
 
-- **Link an account**: `/link your@email.com yourPassword` (DM only) signs in with the same e-mail +
-  password the web app uses (Firebase Auth), so posting from Telegram obeys the exact same rules
-  (quotas, required fields, approval status) as posting from the browser.
+- **Link an account**: `/link` (DM only) walks through the same phone number + 4-digit PIN the
+  member signed up with on the web app - share your Telegram-registered number with the "share my
+  number" button or type it, then enter the PIN. Wrong PINs are capped at 3 tries per attempt
+  (the server itself locks a phone after 5 wrong tries, independent of this); the PIN message is
+  deleted from the chat right away. `/linkemail your@email.com yourPassword` is kept for the
+  older accounts that still sign in with e-mail + password instead of a PIN - same effect either
+  way, just a different account type to prove you own.
 - **Post from Telegram**: `/postload` walks through a few questions and ends with the same
   `POST /api/loads` call the web app makes - the load shows up on the web board immediately.
 - **Broadcast everywhere**: add the bot to any group/channel and it posts every new load there
@@ -43,10 +47,12 @@ Telegram  ──/link, /postload──▶  this bot  ──HTTPS (member's own I
 ```
 
 The bot never duplicates the loadboard API's business logic. `/link` exchanges the member's
-e-mail+password for a Firebase ID token exactly as the web sign-in form does, then stores the
-*refresh token* (encrypted - see `src/crypto.js`) so it can mint a fresh ID token on demand.
-`/postload` and the broadcaster both end up calling the real HTTP API or reading the real `loads`
-table - the same source of truth the web app uses.
+phone + PIN for a session token exactly as the web sign-in form does (`POST /api/auth/pin/login`,
+see `src/linkScene.js`); `/linkemail` does the same for the older e-mail+password accounts. Either
+way the resulting *refresh token* is stored encrypted (see `src/crypto.js`) so the bot can mint a
+fresh session on demand (`POST /api/auth/refresh`, see `src/tokens.js`). `/postload` and the
+broadcaster both end up calling the real HTTP API or reading the real `loads` table - the same
+source of truth the web app uses.
 
 Broadcasting listens directly on the same Postgres `LISTEN sng_events` channel the API's own event
 hub uses, but as its **own** connection: the API coalesces bursts into one "something changed"
@@ -243,15 +249,18 @@ links actually open.
 
 ## Things to know
 
-- **Who can `/link`**: only members who have an e-mail **password** on the web app. Members who
-  sign in with Google, or with a phone number, have none: they open *Account → Sign-in & Security
-  → "Email me a link to set a password"* first (the bot's `/link` help says so, in all three
-  languages). The e-mail must also be **confirmed** - an unconfirmed address gets its own "confirm
-  your e-mail first" reply. The safer design for later is a one-time link code generated in the
-  web app (*Account → Connect Telegram*) instead of a password - see the main repo.
-- **Passwords travel through Telegram.** Telegram bot chats are not end-to-end encrypted, so
-  `/link` sends the web password through Telegram's servers (the bot deletes the message and never
-  stores or logs the password itself). Acceptable for a start, not for the long run.
+- **Who can `/link`**: since sign-up is open (no owner approval gate - members can use the
+  platform the moment they sign up), `/link` works for any member who set a phone + PIN at sign-up.
+  Members who signed up before PIN existed, or only have an e-mail + password account, use
+  `/linkemail` instead. A member the owner later blocks/removes still shows up as rejected and
+  `/link`/`/linkemail` tells them so rather than linking.
+- **PIN tries are capped twice over**: the bot gives up and asks you to start `/link` again after
+  3 wrong PINs in one attempt; independently, the server itself locks that phone number to new PIN
+  sign-ins for a while after 5 wrong tries (`link_pin_locked`, shows the minutes remaining).
+- **Secrets travel through Telegram.** Telegram bot chats are not end-to-end encrypted, so both
+  `/link` (the PIN) and `/linkemail` (the password) send that secret through Telegram's servers -
+  the bot deletes the message right away and never stores or logs the secret itself. Acceptable for
+  a start, not for the long run.
 - **Rate limits**: every bot user posts from this bot's one server address, so the loadboard API's
   write limit is counted **per member**, not per IP; the general per-IP limit still covers the bot
   as a whole - raise it on the API side if many people use the bot.

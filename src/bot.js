@@ -7,11 +7,15 @@ import { FirebaseAuthError, firebaseErrorKey } from './firebase.js';
 import { ApiError } from './apiClient.js';
 import { NotLinkedError } from './tokens.js';
 import { makePostLoadScene } from './wizard.js';
+import { makeLinkScene, linkFailureText, normalizePhone, performLink } from './linkScene.js';
+import { OWN_PREFIX } from './tokens.js';
 import { escapeHtml } from './format.js';
 import { makeLangManager } from './lang.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
+// Phone sign-ups are keyed internally as p<digits>@phone.sng (see server/src/lib/identity.js): show the number instead.
+const loginOf = (identity) => (/^p\d+@phone\.sng$/.test(identity) ? `+${identity.slice(1, -'@phone.sng'.length)}` : identity);
 
 export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const bot = new Telegraf(config.botToken);
@@ -20,7 +24,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.use(session());
   bot.use(async (ctx, next) => { ctx.lang = await lang.getLang(ctx); return next(); });
 
-  const stage = new Scenes.Stage([makePostLoadScene({ apiClient, config })]);
+  const stage = new Scenes.Stage([makePostLoadScene({ apiClient, config }), makeLinkScene({ apiClient, store, tokens })]);
   bot.use(stage.middleware());
 
   // Keeps the bot's chat list (for broadcasting) in sync with reality: fires whenever the bot's own
@@ -54,13 +58,29 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     await ctx.editMessageText(t(code, 'language_set'));
   });
 
+  // /link: phone number + 4-digit PIN (the ones from the website). Without arguments the bot asks for them one by one;
+  // "/link +998901234567 1234" does it in one message.
   bot.command('link', async (ctx) => {
+    if (ctx.chat.type !== 'private') { await ctx.reply(t(ctx.lang, 'link_dm_only')); return; }
+    const args = ctx.message.text.replace(/^\/link(?:@\S+)?/, '').trim();
+    if (!args) { await ctx.scene.enter('link'); return; }
+    ctx.deleteMessage(ctx.message.message_id).catch(() => {}); // the PIN is in this message
+    const m = args.match(/^(.+?)\s+(\d{4})$/);
+    const phone = m && normalizePhone(m[1]);
+    if (!phone) { await ctx.reply(t(ctx.lang, 'link_usage')); return; }
+    const r = await performLink({ apiClient, store, tokens, from: ctx.from, phone, pin: m[2] });
+    if (r.ok) await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(r.company) }), { parse_mode: 'HTML' });
+    else await ctx.reply(linkFailureText(ctx.lang, r));
+  });
+
+  // /linkemail: the older way, for accounts made with e-mail + password (kept so nobody is locked out).
+  bot.command('linkemail', async (ctx) => {
     if (ctx.chat.type !== 'private') {
       await ctx.reply(t(ctx.lang, 'link_dm_only'));
       return;
     }
-    const m = ctx.message.text.match(/^\/link(?:@\S+)?\s+(\S+)\s+(.+)$/s);
-    if (!m) { await ctx.reply(t(ctx.lang, 'link_usage')); return; }
+    const m = ctx.message.text.match(/^\/linkemail(?:@\S+)?\s+(\S+)\s+(.+)$/s);
+    if (!m) { await ctx.reply(t(ctx.lang, 'link_email_usage')); return; }
     const [, email, password] = m;
     ctx.deleteMessage(ctx.message.message_id).catch(() => {}); // best-effort: scrub the password from the chat log
 
@@ -107,7 +127,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     const link = await store.getLinkByTelegramUserId(ctx.from.id);
     if (!link) { await ctx.reply(t(ctx.lang, 'mystatus_none')); return; }
     await ctx.reply(t(ctx.lang, 'mystatus_linked', {
-      company: escapeHtml(link.company), email: escapeHtml(link.email), status: t(ctx.lang, `status_${link.member_status}`),
+      company: escapeHtml(link.company), login: escapeHtml(loginOf(link.email)), status: t(ctx.lang, `status_${link.member_status}`),
     }), { parse_mode: 'HTML' });
   });
 
@@ -126,7 +146,13 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     let me;
     try {
       me = await apiClient.getMe(idToken);
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401 && (await store.getLinkByTelegramUserId(ctx.from.id))?.refreshToken?.startsWith(OWN_PREFIX)) {
+        await store.removeLink(ctx.from.id); // the PIN was changed (or the account removed): the old link can never work again
+        tokens.invalidate(ctx.from.id);
+        await ctx.reply(t(ctx.lang, 'postload_session_error'));
+        return;
+      }
       await ctx.reply(t(ctx.lang, 'postload_unreachable'));
       return;
     }

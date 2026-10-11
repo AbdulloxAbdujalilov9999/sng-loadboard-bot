@@ -6,7 +6,8 @@
 // web app or from /postload here, since both go through the same `loads` table and the same
 // `publish()` call in server/src/events.js.
 import pg from 'pg';
-import { formatLoadMessage } from './format.js';
+import { formatLoadMessage, escapeHtml } from './format.js';
+import { t } from './i18n.js';
 
 const CHANNEL = 'sng_events';
 
@@ -53,7 +54,28 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     }
   }
 
+  // A new member signed up: tell the platform owner(s) on Telegram (the web app tells them too, while it is open).
+  async function notifyOwners(memberId) {
+    const { rows: [m] } = await pool.query('SELECT * FROM members WHERE id = $1', [memberId]);
+    if (!m || m.role === 'owner') return;
+    const owners = await store.listOwnerTelegramIds?.() ?? [];
+    if (!owners.length) return;
+    const login = /^p\d+@phone\.sng$/.test(m.email) ? `+${m.email.slice(1, -'@phone.sng'.length)}` : m.email;
+    const name = m.company && m.company !== m.contact_name ? `${m.company} (${m.contact_name})` : (m.contact_name || m.company);
+    const contact = [...new Set([m.phone, m.telegram, m.contact_email, login].filter(Boolean))].join(' · ');
+    for (const id of owners) {
+      const lang = (await store.getLanguage?.(id)) ?? config.broadcastLang;
+      await bot.telegram.sendMessage(id, t(lang, 'owner_new_member', { name: escapeHtml(name), contact: escapeHtml(contact) }), { parse_mode: 'HTML' })
+        .catch((err) => log.warn?.(`owner notice to ${id} failed: ${err.message}`));
+    }
+  }
+
   async function handleEvent(evt) {
+    if (evt?.entity === 'members' && evt.op === 'insert' && evt.id) {
+      queue = queue.then(() => notifyOwners(evt.id));
+      await queue.catch((err) => log.error?.(`owner notice failed: ${err.message}`) ?? console.error(`owner notice failed: ${err.message}`));
+      return;
+    }
     if (evt?.entity !== 'loads' || evt.op !== 'insert' || !evt.id) return;
     const row = await fetchLoad(evt.id);
     if (!row || row.status !== 'active') return; // closed/edited away again before we got to it

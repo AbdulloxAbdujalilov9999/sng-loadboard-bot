@@ -17,7 +17,7 @@ async function main() {
   const firebaseAuth = makeFirebaseAuth({ apiKey: config.firebaseApiKey });
   const apiClient = makeApiClient({ baseUrl: config.apiBaseUrl });
   const store = makeStore(pool, crypto);
-  const tokens = makeTokenManager({ store, firebaseAuth });
+  const tokens = makeTokenManager({ store, firebaseAuth, apiClient });
   const bot = makeBot({ config, firebaseAuth, apiClient, tokens, store });
   const broadcaster = makeBroadcaster({ config, pool, store, bot });
 

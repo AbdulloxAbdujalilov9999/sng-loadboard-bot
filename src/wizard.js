@@ -87,18 +87,24 @@ export function makePostLoadScene({ apiClient, config }) {
       state.step = 'contactPhone';
       return ctx.reply(t(ctx.lang, 'wiz_ask_contact_phone'));
     }
+    // A phone number OR a Telegram username is required (one is enough, "-" skips); e-mail is optional.
+    const skip = (v) => (v === '-' ? '' : v);
     if (state.step === 'contactPhone') {
-      state.draft.contactPhone = text.slice(0, 40);
-      state.step = 'contactEmail';
-      return ctx.reply(t(ctx.lang, 'wiz_ask_contact_email'));
-    }
-    if (state.step === 'contactEmail') {
-      state.draft.contactEmail = text.slice(0, 254);
+      state.draft.contactPhone = skip(text).slice(0, 40);
       state.step = 'contactTelegram';
       return ctx.reply(t(ctx.lang, 'wiz_ask_contact_telegram'));
     }
     if (state.step === 'contactTelegram') {
-      state.draft.contactTelegram = text.slice(0, 40);
+      state.draft.contactTelegram = skip(text).slice(0, 40);
+      if (!state.draft.contactPhone && !state.draft.contactTelegram) {
+        state.step = 'contactPhone';
+        return ctx.reply(`${t(ctx.lang, 'wiz_contact_need_one')}\n\n${t(ctx.lang, 'wiz_ask_contact_phone')}`);
+      }
+      state.step = 'contactEmail';
+      return ctx.reply(t(ctx.lang, 'wiz_ask_contact_email'));
+    }
+    if (state.step === 'contactEmail') {
+      state.draft.contactEmail = skip(text).slice(0, 254);
       return showPreview(ctx);
     }
     return undefined;
@@ -108,9 +114,9 @@ export function makePostLoadScene({ apiClient, config }) {
     const state = ctx.scene.state;
     const m = state.member;
     state.step = 'contactChoice';
-    const hasDefaults = m.contactName && m.phone && m.contactEmail && m.telegram;
+    const hasDefaults = m.contactName && (m.phone || m.telegram); // a phone OR a Telegram username is enough
     if (!hasDefaults) return askContactManually(ctx, t(ctx.lang, 'wiz_contact_missing'));
-    const summary = [m.contactName, m.phone, m.telegram, m.contactEmail].map(escapeHtml).join(' · ');
+    const summary = [m.contactName, m.phone, m.telegram, m.contactEmail].filter(Boolean).map(escapeHtml).join(' · ');
     await ctx.reply(
       t(ctx.lang, 'wiz_contact_use_profile_q', { summary }),
       { parse_mode: 'HTML', ...Markup.inlineKeyboard([
@@ -134,7 +140,7 @@ export function makePostLoadScene({ apiClient, config }) {
       volume_m3: null, commodity: d.commodity, pickup_date: d.pickupDate, delivery_date: null,
       distance_km: null, rate_usd: d.rateUsd, notes: d.notes,
       company_name: state.member.company, contact_name: d.contactName, contact_phone: d.contactPhone,
-      contact_email: d.contactEmail, contact_tg: d.contactTelegram,
+      contact_email: d.contactEmail || '', contact_tg: d.contactTelegram || '',
     };
     await ctx.reply(formatLoadPreview(previewRow, ctx.lang), { parse_mode: 'HTML', ...Markup.inlineKeyboard([
       [Markup.button.callback(t(ctx.lang, 'wiz_btn_post'), 'confirm:post')],
@@ -227,8 +233,8 @@ export function makePostLoadScene({ apiClient, config }) {
       const created = await apiClient.createLoad(state.idToken, {
         originCityId: d.originCityId, destCityId: d.destCityId, equip: d.equip, fp: d.fp,
         weightT: d.weightT, pickupDate: d.pickupDate, rateUsd: d.rateUsd, commodity: d.commodity,
-        notes: d.notes || undefined, contactName: d.contactName, contactPhone: d.contactPhone,
-        contactEmail: d.contactEmail, contactTelegram: d.contactTelegram,
+        notes: d.notes || undefined, contactName: d.contactName, contactPhone: d.contactPhone || '',
+        contactEmail: d.contactEmail || '', contactTelegram: d.contactTelegram || '',
       });
       // The poster gets their own link too, same one the broadcast sends to every group (see
       // broadcaster.js) - one unique URL per load, backed by GET /api/loads/:id.
