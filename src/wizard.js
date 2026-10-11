@@ -55,14 +55,12 @@ export function makePostLoadScene({ apiClient, config }) {
       const tons = parsePositiveNumber(text, 100);
       if (!tons) return ctx.reply(t(ctx.lang, 'wiz_weight_invalid'));
       state.draft.weightT = tons;
-      state.step = 'pickupDate';
-      return ctx.reply(t(ctx.lang, 'wiz_ask_pickup'));
+      return askPickup(ctx);
     }
     if (state.step === 'pickupDate') {
       if (!isoDateRe.test(text)) return ctx.reply(t(ctx.lang, 'wiz_pickup_invalid'));
       state.draft.pickupDate = text;
-      state.step = 'rate';
-      return ctx.reply(t(ctx.lang, 'wiz_ask_rate'));
+      return askRate(ctx);
     }
     if (state.step === 'rate') {
       const rate = text === '-' || Number(text.replace(',', '.')) === 0 ? 0 : parsePositiveNumber(text, 10_000_000); // 0 = negotiable, as on the web board
@@ -108,6 +106,43 @@ export function makePostLoadScene({ apiClient, config }) {
       return showPreview(ctx);
     }
     return undefined;
+  });
+
+  // "Today" and "ASAP" both just mean "pickup date = today" - offered as buttons since that is by
+  // far the most common answer, without giving up the option to type any other date.
+  async function askPickup(ctx) {
+    ctx.scene.state.step = 'pickupDate';
+    await ctx.reply(t(ctx.lang, 'wiz_ask_pickup'), Markup.inlineKeyboard([
+      [Markup.button.callback(t(ctx.lang, 'wiz_btn_today'), 'pickup:today'), Markup.button.callback(t(ctx.lang, 'wiz_btn_asap'), 'pickup:asap')],
+    ]));
+  }
+
+  // "-" is the same shortcut /postload already accepts when typed - this just offers it as a button too.
+  async function askRate(ctx) {
+    ctx.scene.state.step = 'rate';
+    await ctx.reply(t(ctx.lang, 'wiz_ask_rate'), Markup.inlineKeyboard([
+      [Markup.button.callback('-', 'rate:negotiable')],
+    ]));
+  }
+
+  scene.action(/^pickup:(today|asap)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const state = ctx.scene.state;
+    if (state.step !== 'pickupDate') return;
+    const today = new Date().toISOString().slice(0, 10);
+    state.draft.pickupDate = today;
+    await ctx.editMessageText(t(ctx.lang, 'wiz_pickup_set', { date: today }));
+    return askRate(ctx);
+  });
+
+  scene.action('rate:negotiable', async (ctx) => {
+    await ctx.answerCbQuery();
+    const state = ctx.scene.state;
+    if (state.step !== 'rate') return;
+    state.draft.rateUsd = 0;
+    await ctx.editMessageText(t(ctx.lang, 'wiz_rate_set_negotiable'));
+    state.step = 'commodity';
+    return ctx.reply(t(ctx.lang, 'wiz_ask_commodity'));
   });
 
   async function offerContact(ctx) {
@@ -241,7 +276,9 @@ export function makePostLoadScene({ apiClient, config }) {
       const link = config.webUrlIsPublic === false ? '' : `<a href="${escapeHtml(`${config.webBaseUrl}/?load=${created.id}`)}">${t(ctx.lang, 'msg_view_on_board')}</a>`;
       await ctx.editMessageText(t(ctx.lang, 'wiz_posted', { link }), { parse_mode: 'HTML' });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (err instanceof ApiError && err.code === 'subscription_required') {
+        await ctx.editMessageText(t(ctx.lang, 'wiz_subscription_required'));
+      } else if (err instanceof ApiError) {
         const detail = err.details?.length ? `\n${err.details.map((d2) => `• ${d2.path}: ${d2.code}`).join('\n')}` : '';
         await ctx.editMessageText(t(ctx.lang, 'wiz_post_failed', { message: escapeHtml(err.message) + escapeHtml(detail) }));
       } else {

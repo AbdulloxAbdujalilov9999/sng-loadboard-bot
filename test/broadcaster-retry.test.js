@@ -13,7 +13,11 @@ const pool = { query: async () => ({ rows: [ROW] }) };
 function run({ send, config = {} }) {
   const sent = []; const removed = []; const slept = [];
   const bot = { telegram: { sendMessage: async (chatId, text) => { const r = await send(chatId, sent.length); sent.push({ chatId, text }); return r; } } };
-  const store = { listActiveChatIds: async () => [1], markChatRemoved: async (id) => removed.push(id) };
+  const store = {
+    listActiveChatIds: async () => [1], markChatRemoved: async (id) => removed.push(id),
+    getTelegramUserIdByMemberId: async () => null, saveSentMessage: async () => {},
+    listSentMessages: async () => [], deleteSentMessages: async () => {},
+  };
   const b = makeBroadcaster({ config: { databaseUrl: 'x', broadcastSpacingMs: 0, broadcastLang: 'en', webBaseUrl: 'https://sng.example', ...config }, pool, store, bot, log: { warn() {}, error() {} }, sleep: async (ms) => { slept.push(ms); } });
   return { b, sent, removed, slept };
 }

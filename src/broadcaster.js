@@ -38,20 +38,50 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     }
   }
 
-  async function sendToAllChats(text) {
+  // Sends one message and remembers (load, chat) -> message id, so handleDelete() can pull it back
+  // out of that chat later if the load is closed/removed (see telegram_load_messages).
+  async function sendAndTrack(loadId, chatId, text) {
+    try {
+      const sent = await sendWithRetry(chatId, text);
+      if (sent?.message_id != null) {
+        await store.saveSentMessage({ loadId, chatId, messageId: sent.message_id })
+          .catch((err) => log.warn?.(`tracking message for load ${loadId} in ${chatId} failed: ${err.message}`));
+      }
+    } catch (err) {
+      const code = err?.response?.error_code;
+      const gone = /chat not found|kicked|not a member|deactivated/i.test(err?.response?.description ?? err.message ?? '');
+      // 403 = bot was removed/blocked without us hearing a my_chat_member update; stop posting there.
+      if (code === 403 || (code === 400 && gone)) await store.markChatRemoved(chatId).catch(() => {});
+      else log.warn?.(`broadcast to ${chatId} failed: ${err.message}`) ?? console.warn(`broadcast to ${chatId} failed: ${err.message}`);
+    }
+  }
+
+  async function sendToAllChats(loadId, text) {
     const chatIds = await store.listActiveChatIds();
     for (const chatId of chatIds) {
-      try {
-        await sendWithRetry(chatId, text);
-      } catch (err) {
-        const code = err?.response?.error_code;
-        const gone = /chat not found|kicked|not a member|deactivated/i.test(err?.response?.description ?? err.message ?? '');
-        // 403 = bot was removed/blocked without us hearing a my_chat_member update; stop posting there.
-        if (code === 403 || (code === 400 && gone)) await store.markChatRemoved(chatId).catch(() => {});
-        else log.warn?.(`broadcast to ${chatId} failed: ${err.message}`) ?? console.warn(`broadcast to ${chatId} failed: ${err.message}`);
-      }
+      await sendAndTrack(loadId, chatId, text);
       if (config.broadcastSpacingMs > 0) await sleep(config.broadcastSpacingMs);
     }
+  }
+
+  // The poster gets their own load in their own chat too, same message every group gets - only if
+  // they've ever linked their Telegram account (store.getTelegramUserIdByMemberId returns null otherwise).
+  async function sendToOwner(loadId, ownerMemberId, text) {
+    const chatId = await store.getTelegramUserIdByMemberId(ownerMemberId);
+    if (chatId) await sendAndTrack(loadId, chatId, text);
+  }
+
+  // The load was closed/removed (DELETE /api/loads/:id, from the web app, /postload... or /myloads
+  // below): pull its messages back out of every chat it reached. Telegram refuses to delete a
+  // message once it's more than 48h old (or already gone) - nothing more to do there, but the row
+  // is forgotten regardless so this never retries forever.
+  async function handleDelete(loadId) {
+    const sent = await store.listSentMessages(loadId);
+    for (const { chat_id: chatId, message_id: messageId } of sent) {
+      await bot.telegram.deleteMessage(chatId, messageId)
+        .catch((err) => log.warn?.(`could not delete message ${messageId} in ${chatId} for load ${loadId}: ${err.message}`));
+    }
+    await store.deleteSentMessages(loadId);
   }
 
   // A new member signed up: tell the platform owner(s) on Telegram (the web app tells them too, while it is open).
@@ -70,13 +100,26 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     }
   }
 
+  // Each branch below catches its OWN errors inside the function handed to queue.then(), so the
+  // promise that .then() returns - and therefore `queue` itself - never rejects. A rejected `queue`
+  // would otherwise poison every later call forever: queue.then(fn) on an already-rejected promise
+  // skips fn and just re-rejects, so one bad event would silently stop all future broadcasts until
+  // the process restarts.
   async function handleEvent(evt) {
     if (evt?.entity === 'members' && evt.op === 'insert' && evt.id) {
-      queue = queue.then(() => notifyOwners(evt.id));
-      await queue.catch((err) => log.error?.(`owner notice failed: ${err.message}`) ?? console.error(`owner notice failed: ${err.message}`));
+      queue = queue.then(() => notifyOwners(evt.id)
+        .catch((err) => log.error?.(`owner notice failed: ${err.message}`) ?? console.error(`owner notice failed: ${err.message}`)));
+      await queue;
       return;
     }
-    if (evt?.entity !== 'loads' || evt.op !== 'insert' || !evt.id) return;
+    if (evt?.entity !== 'loads' || !evt.id) return;
+    if (evt.op === 'delete') {
+      queue = queue.then(() => handleDelete(evt.id)
+        .catch((err) => log.error?.(`un-broadcasting load ${evt.id} failed: ${err.message}`) ?? console.error(`un-broadcasting load ${evt.id} failed: ${err.message}`)));
+      await queue;
+      return;
+    }
+    if (evt.op !== 'insert') return;
     const row = await fetchLoad(evt.id);
     if (!row || row.status !== 'active') return; // closed/edited away again before we got to it
     // Each load gets its own link back to this exact load on the web board (GET /api/loads/:id
@@ -84,8 +127,15 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     // independent of whoever posted it or whichever group it landed in.
     const linkUrl = config.webUrlIsPublic === false ? null : `${config.webBaseUrl}/?load=${row.id}`; // never broadcast a dead (internal) address
     const text = formatLoadMessage(row, config.broadcastLang, linkUrl);
-    queue = queue.then(() => sendToAllChats(text));
-    await queue.catch((err) => log.error?.(`broadcast failed: ${err.message}`) ?? console.error(`broadcast failed: ${err.message}`));
+    queue = queue.then(async () => {
+      try {
+        await sendToAllChats(row.id, text);
+        await sendToOwner(row.id, row.owner_id, text);
+      } catch (err) {
+        log.error?.(`broadcast failed: ${err.message}`) ?? console.error(`broadcast failed: ${err.message}`);
+      }
+    });
+    await queue;
   }
 
   async function connect() {

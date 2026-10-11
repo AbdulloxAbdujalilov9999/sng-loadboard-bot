@@ -16,16 +16,25 @@ export function formatLoadMessage(row, lang = 'en', linkUrl = null) {
   const pickup = row.delivery_date
     ? t(lang, 'msg_pickup_delivery', { date: row.pickup_date, date2: row.delivery_date })
     : t(lang, 'msg_pickup', { date: row.pickup_date });
+  // One fact per line (each tagged by its own emoji, no label text to translate) - easier to scan
+  // in a group chat than the old layout, which crammed equip+fp+weight and distance+rate together.
   const lines = [
     `🚚 <b>${escapeHtml(row.origin_city)} → ${escapeHtml(row.dest_city)}</b>`,
-    `${equip} · ${fp} · ${Number(row.weight_t)} t${row.volume_m3 ? ` · ${row.volume_m3} m³` : ''}`,
+    '',
+    `🔧 ${equip} (${fp})`,
+    `⚖️ ${Number(row.weight_t)} t${row.volume_m3 ? ` · ${row.volume_m3} m³` : ''}`,
     `📦 ${escapeHtml(row.commodity)}`,
     `📅 ${pickup}`,
-    row.distance_km ? `📏 ${row.distance_km} km · 💰 ${money(row.rate_usd, lang)}` : `💰 ${money(row.rate_usd, lang)}`,
   ];
+  if (row.distance_km) lines.push(`📏 ${row.distance_km} km`);
+  lines.push(`💰 ${money(row.rate_usd, lang)}`);
   if (row.notes) lines.push(`📝 ${escapeHtml(row.notes)}`);
   lines.push('');
-  lines.push(`${escapeHtml(row.company_name)} · ${escapeHtml(row.contact_name)}`);
+  // Company and contact name are often the same person/one-person company - show it once, not twice.
+  const name = row.company_name && row.company_name !== row.contact_name
+    ? `${row.company_name} (${row.contact_name})`
+    : (row.contact_name || row.company_name);
+  if (name) lines.push(escapeHtml(name));
   const contact = [row.contact_phone, row.contact_tg, row.contact_email].filter(Boolean).map(escapeHtml);
   if (contact.length) lines.push(contact.join(' · '));
   if (linkUrl) lines.push('', `<a href="${escapeHtml(linkUrl)}">${t(lang, 'msg_view_on_board')}</a>`);

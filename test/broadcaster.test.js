@@ -16,6 +16,10 @@ function makeFixture({ listRow = ROW } = {}) {
   const store = {
     listActiveChatIds: async () => [111, 222, 333],
     markChatRemoved: async (id) => removed.push(id),
+    getTelegramUserIdByMemberId: async () => null,
+    saveSentMessage: async () => {},
+    listSentMessages: async () => [],
+    deleteSentMessages: async () => {},
   };
   const bot = {
     telegram: {
@@ -59,4 +63,55 @@ test('skips silently if the row is gone (race with a delete)', async () => {
   const { broadcaster, sent } = makeFixture({ listRow: null });
   await broadcaster._handleEvent({ entity: 'loads', op: 'insert', id: 999 });
   assert.equal(sent.length, 0);
+});
+
+test('also sends the load to the poster\'s own linked Telegram chat', async () => {
+  const pool = { query: async (sql) => (sql.includes('FROM loads') ? { rows: [{ ...ROW, owner_id: 42 }] } : { rows: [] }) };
+  const sent = [];
+  const store = {
+    listActiveChatIds: async () => [111],
+    markChatRemoved: async () => {},
+    getTelegramUserIdByMemberId: async (memberId) => (memberId === 42 ? 999 : null),
+    saveSentMessage: async () => {},
+    listSentMessages: async () => [], deleteSentMessages: async () => {},
+  };
+  const bot = { telegram: { sendMessage: async (chatId, text) => { sent.push({ chatId, text }); return { message_id: 1 }; } } };
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: 'x', broadcastSpacingMs: 0, broadcastLang: 'en', webBaseUrl: 'https://sng.example' },
+    pool, store, bot, log: { warn() {}, error() {} },
+  });
+  await broadcaster._handleEvent({ entity: 'loads', op: 'insert', id: 1 });
+  assert.deepEqual(sent.map((s) => s.chatId), [111, 999]); // the group, then the poster's own DM
+});
+
+test('a closed/removed load is deleted from every chat it was sent to', async () => {
+  const deletedFrom = [];
+  const deletedCalls = [];
+  const store = {
+    listSentMessages: async (loadId) => { deletedCalls.push(loadId); return [{ chat_id: 111, message_id: 55 }, { chat_id: 999, message_id: 56 }]; },
+    deleteSentMessages: async (loadId) => deletedFrom.push(loadId),
+  };
+  const bot = { telegram: { deleteMessage: async (chatId) => { deletedFrom.push(chatId); } } };
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: 'x', broadcastSpacingMs: 0, broadcastLang: 'en', webBaseUrl: 'https://sng.example' },
+    pool: { query: async () => ({ rows: [] }) }, store, bot, log: { warn() {}, error() {} },
+  });
+  await broadcaster._handleEvent({ entity: 'loads', op: 'delete', id: 1 });
+  assert.deepEqual(deletedCalls, [1]);
+  assert.deepEqual(deletedFrom, [111, 999, 1]); // both chats' messages deleted, then the tracking rows forgotten
+});
+
+test('a delete that fails to remove one message (too old / already gone) still forgets the rest', async () => {
+  const forgotten = [];
+  const store = {
+    listSentMessages: async () => [{ chat_id: 111, message_id: 55 }],
+    deleteSentMessages: async (loadId) => forgotten.push(loadId),
+  };
+  const bot = { telegram: { deleteMessage: async () => { throw new Error('message to delete not found'); } } };
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: 'x', broadcastSpacingMs: 0, broadcastLang: 'en', webBaseUrl: 'https://sng.example' },
+    pool: { query: async () => ({ rows: [] }) }, store, bot, log: { warn() {}, error() {} },
+  });
+  await broadcaster._handleEvent({ entity: 'loads', op: 'delete', id: 1 });
+  assert.deepEqual(forgotten, [1]);
 });

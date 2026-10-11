@@ -82,6 +82,32 @@ export function makeStore(pool, crypto) {
     return n;
   }
 
+  // The member's own DM chat, if they've ever linked - broadcaster.js sends them a copy of their
+  // own load too, the same message every group gets.
+  async function getTelegramUserIdByMemberId(memberId) {
+    const { rows: [row] } = await pool.query('SELECT telegram_user_id FROM telegram_links WHERE member_id = $1', [memberId]);
+    return row?.telegram_user_id ?? null;
+  }
+
+  // Remembers which (chat, message) pair carried a given load, so closing/removing it can delete
+  // those messages too - see broadcaster.js's 'delete' event handling.
+  async function saveSentMessage({ loadId, chatId, messageId }) {
+    await pool.query(
+      `INSERT INTO telegram_load_messages (load_id, chat_id, message_id) VALUES ($1, $2, $3)
+       ON CONFLICT (load_id, chat_id) DO UPDATE SET message_id = $3`,
+      [loadId, chatId, messageId],
+    );
+  }
+
+  async function listSentMessages(loadId) {
+    const { rows } = await pool.query('SELECT chat_id, message_id FROM telegram_load_messages WHERE load_id = $1', [loadId]);
+    return rows;
+  }
+
+  async function deleteSentMessages(loadId) {
+    await pool.query('DELETE FROM telegram_load_messages WHERE load_id = $1', [loadId]);
+  }
+
   // null means "never set" - the caller falls back to Telegram's own language_code.
   async function getLanguage(telegramUserId) {
     const { rows: [row] } = await pool.query('SELECT language FROM telegram_users WHERE telegram_user_id = $1', [telegramUserId]);
@@ -99,5 +125,6 @@ export function makeStore(pool, crypto) {
   return {
     saveLink, getLinkByTelegramUserId, updateRefreshToken, removeLink, upsertChat, markChatRemoved,
     listActiveChatIds, listOwnerTelegramIds, countActiveChats, getLanguage, setLanguage,
+    getTelegramUserIdByMemberId, saveSentMessage, listSentMessages, deleteSentMessages,
   };
 }

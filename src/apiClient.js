@@ -35,11 +35,17 @@ export function makeApiClient({ baseUrl }) {
   // Same endpoint the web app's "paste from Telegram/WhatsApp" screen calls - see server/src/routes/ai.js.
   // Used by the ingest bot (ingestPipeline.js) to turn a group message into structured load drafts.
   const parseLoads = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-loads', { text });
+  // Used by /myloads (bot.js): everything this member has posted, so they can delete one from the chat.
+  const listMine = (idToken) => request(idToken, 'GET', '/api/loads/mine');
+  // Soft-close (server/src/routes/loads.js DELETE route) - the same call the web app's "Remove" button
+  // makes. Publishes a 'loads'/'delete' event, which broadcaster.js uses to pull the load's messages
+  // back out of every group/DM it was sent to.
+  const deleteLoad = (idToken, id) => request(idToken, 'DELETE', `/api/loads/${id}`);
 
   // Phone + 4-digit PIN sign-in (server/src/routes/pin.js): the same door the web app uses. Returns { token, expiresAt }.
   const pinLogin = (phone, pin) => request(null, 'POST', '/api/auth/pin/login', { phone, pin, purpose: 'bot' });
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, parseLoads, pinLogin, refreshSession };
+  return { getMe, searchCities, createLoad, parseLoads, listMine, deleteLoad, pinLogin, refreshSession };
 }

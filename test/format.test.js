@@ -59,6 +59,17 @@ test('appends a link to the load on the web board when given one', () => {
   assert.doesNotMatch(withoutLink, /<a href/);
 });
 
+test('shows the poster\'s name once, not twice, when company and contact name are the same', () => {
+  const row = { ...ROW, company_name: 'Abdulloh Abdujalilov', contact_name: 'Abdulloh Abdujalilov' };
+  const msg = formatLoadMessage(row);
+  assert.equal((msg.match(/Abdulloh Abdujalilov/g) ?? []).length, 1);
+});
+
+test('shows both company and contact name when they differ', () => {
+  const msg = formatLoadMessage(ROW); // company_name: 'Acme Logistics', contact_name: 'Bek'
+  assert.match(msg, /Acme Logistics \(Bek\)/);
+});
+
 test('a rate of 0 is shown as "negotiable" in every language, never as $0', () => {
   const row = { origin_city: 'A, UZ', dest_city: 'B, RU', equip: 'T', fp: 'Full', weight_t: 20, commodity: 'x', pickup_date: '2026-10-10', rate_usd: '0.00', company_name: 'Co', contact_name: 'n' };
   assert.match(formatLoadMessage(row, 'en'), /💰 Negotiable/);

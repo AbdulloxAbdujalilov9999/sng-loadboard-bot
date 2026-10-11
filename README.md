@@ -29,11 +29,23 @@ a second bot" below.
   `/postload` here. One `loads` table, one event, one broadcaster: there is no special "Telegram
   path" for a load to take. Each broadcast message carries its own link back to that exact load on
   the web board (`https://.../?load=<id>` - works for anyone with board access, opens a read-only
-  detail view; see "Deep links" below).
+  detail view; see "Deep links" below), and lists its facts one per line (route, equipment, weight,
+  cargo, pickup date, distance, rate, notes) rather than cramming several onto one line - see
+  `src/format.js`. The poster's name is shown once, not twice, when their company name and contact
+  name are the same.
+- **You get your own load too**: if you've ever `/link`ed, every load you post - from the web app
+  or from `/postload` - is also sent to your own chat with the bot, the same message every group
+  gets.
+- **`/myloads`**: lists everything you've posted, each with a Delete button (with a Yes/No confirm
+  step). Deleting calls the same `DELETE /api/loads/:id` the web app's "Remove" button uses, which
+  also pulls that load's messages back out of every group/DM it was broadcast to (see "Deleting a
+  load" below).
 - **English, Russian, Uzbek**: the same three languages the web app offers (`src/i18n.js`).
   Auto-detected from Telegram's own client language on first contact; `/language` switches it.
   Groups get one fixed language for broadcasts (`BOT_BROADCAST_LANG`, since a group mixes people),
-  while every DM follows that person's own choice.
+  while every DM follows that person's own choice. City names themselves are not translated - they
+  are stored once per load (the same value the web app shows in every UI language), so whichever
+  language you pick, city names keep their original spelling.
 
 ### How it works
 
@@ -68,11 +80,22 @@ closed/removed load shows "no longer available" instead of an error. The link is
 `PUBLIC_WEB_URL` + `/?load=` + the load's id - see `src/broadcaster.js` and the `confirm:post`
 handler in `src/wizard.js` (the poster gets the same link as everyone else).
 
+### Deleting a load
+
+Every message the broadcaster sends - to a group or to the poster's own chat - is remembered in
+`telegram_load_messages` (`load_id`, `chat_id`, `message_id`; see `017_telegram_load_messages.sql`).
+When a load is closed/removed (the web app's "Remove" button, or `/myloads`'s Delete button here -
+both end up at the same `DELETE /api/loads/:id`), the API publishes a `loads`/`delete` event; the
+broadcaster reacts by deleting those exact messages from every chat they reached, then forgets the
+rows. Telegram refuses to delete a message once it is more than 48h old (or already gone) - nothing
+more to do there, but the row is forgotten regardless so this never retries forever.
+
 ### Setup
 
 This bot needs the [sng-loadboard](https://github.com/AbdulloxAbdujalilov9999/sng-loadboard) API
-already running (it supplies the database schema, including the `006_telegram.sql` migration in
-this repo's `migrations/` folder, applied automatically when that app boots).
+already running (it supplies the database schema, including the `006_telegram.sql` and
+`017_telegram_load_messages.sql` migrations in this repo's `migrations/` folder, applied
+automatically when that app boots).
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) on Telegram → copy the token.
 2. `cp .env.example .env` and fill it in (see `.env.example` for the full list) - at minimum:
