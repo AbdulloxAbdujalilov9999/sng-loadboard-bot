@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, formatLoadMessage } from '../src/format.js';
+import { escapeHtml, formatLoadMessage, joinLines } from '../src/format.js';
 
 const ROW = {
   origin_city: 'Tashkent, UZ', dest_city: 'Moscow, RU', equip: 'T', fp: 'Full', weight_t: '20.00',
@@ -68,6 +68,19 @@ test('shows the poster\'s name once, not twice, when company and contact name ar
 test('shows both company and contact name when they differ', () => {
   const msg = formatLoadMessage(ROW); // company_name: 'Acme Logistics', contact_name: 'Bek'
   assert.match(msg, /Acme Logistics \(Bek\)/);
+});
+
+test('joinLines invites the configured channel/group, in every language, with no leading "@@"', () => {
+  const cfg = { joinChannel: 'sngOne_yuklar', joinGroup: '@sngOne_yuklarr' }; // either form of the handle works
+  assert.equal(joinLines(cfg, 'en'), '📢 Channel: @sngOne_yuklar\n💬 Group: @sngOne_yuklarr');
+  assert.match(joinLines(cfg, 'ru'), /Канал: @sngOne_yuklar/);
+  assert.match(joinLines(cfg, 'uz'), /Kanal: @sngOne_yuklar/);
+});
+
+test('joinLines is empty when neither is configured, and shows just one line when only one is', () => {
+  assert.equal(joinLines({}, 'en'), '');
+  assert.equal(joinLines({ joinChannel: 'sngOne_yuklar' }, 'en'), '📢 Channel: @sngOne_yuklar');
+  assert.equal(joinLines({ joinGroup: 'sngOne_yuklarr' }, 'en'), '💬 Group: @sngOne_yuklarr');
 });
 
 test('a rate of 0 is shown as "negotiable" in every language, never as $0', () => {

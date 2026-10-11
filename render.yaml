@@ -27,6 +27,10 @@ services:
         sync: false            # 32 random bytes, base64: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
       - key: BOT_BROADCAST_LANG
         value: uz               # en/ru/uz - language used for messages broadcast to groups
+      - key: BOT_JOIN_CHANNEL
+        value: sngOne_yuklar    # our own channel, invited in bot messages - optional
+      - key: BOT_JOIN_GROUP
+        value: sngOne_yuklarr   # our own group, invited in bot messages - optional
 
   # The Telegram INGEST bot: a separate bot added to big public freight-posting groups (not your
   # own broadcast chats above). Reads every message, runs it through the same AI parser the web

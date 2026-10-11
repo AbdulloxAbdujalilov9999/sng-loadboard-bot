@@ -44,3 +44,17 @@ export function formatLoadMessage(row, lang = 'en', linkUrl = null) {
 export function formatLoadPreview(row, lang = 'en') {
   return `${formatLoadMessage(row, lang)}\n\n<i>${t(lang, 'wiz_preview_footer')}</i>`;
 }
+
+/**
+ * Our own official channel/group, as a line (or two) to append to the welcome message, the
+ * /postload confirmation, and every broadcast message - see bot.js, wizard.js and broadcaster.js.
+ * `config` is bot config (`joinChannel`/`joinGroup`, see config.js) - both optional, so this is ''
+ * (append nothing) when neither is set.
+ */
+export function joinLines(config, lang = 'en') {
+  const at = (handle) => `@${String(handle).replace(/^@/, '')}`; // config.js already strips "@" - also guard here against a bare "@handle" passed directly
+  const lines = [];
+  if (config.joinChannel) lines.push(t(lang, 'join_channel', { handle: at(config.joinChannel) }));
+  if (config.joinGroup) lines.push(t(lang, 'join_group', { handle: at(config.joinGroup) }));
+  return lines.join('\n');
+}

@@ -26,6 +26,11 @@ export function loadBotConfig(env = process.env) {
     // Groups mix members of different languages, so broadcasts use one fixed language for everyone
     // (unlike DMs, which follow each person's own /language choice).
     broadcastLang: LANGS.includes(env.BOT_BROADCAST_LANG) ? env.BOT_BROADCAST_LANG : DEFAULT_LANG,
+    // Our own official channel/group, invited in the welcome message, the /postload confirmation,
+    // and every broadcast message (see format.js's joinLines) - optional, leave blank to omit.
+    // Stored without the leading "@" (stripped if given) so there's never a double "@@".
+    joinChannel: (env.BOT_JOIN_CHANNEL || '').replace(/^@/, ''),
+    joinGroup: (env.BOT_JOIN_GROUP || '').replace(/^@/, ''),
   };
   const problems = [];
   // Links in broadcasts are clicked by people on the internet. An internal/localhost address would be a dead

@@ -8,7 +8,7 @@
 // whichever of English/Russian/Uzbek the person has chosen.
 import { Scenes, Markup } from 'telegraf';
 import { ApiError } from './apiClient.js';
-import { escapeHtml, formatLoadPreview } from './format.js';
+import { escapeHtml, formatLoadPreview, joinLines } from './format.js';
 import { t } from './i18n.js';
 
 const EQUIP_CODES = ['T', 'R', 'F', 'V', 'AC'];
@@ -274,7 +274,9 @@ export function makePostLoadScene({ apiClient, config }) {
       // The poster gets their own link too, same one the broadcast sends to every group (see
       // broadcaster.js) - one unique URL per load, backed by GET /api/loads/:id.
       const link = config.webUrlIsPublic === false ? '' : `<a href="${escapeHtml(`${config.webBaseUrl}/?load=${created.id}`)}">${t(ctx.lang, 'msg_view_on_board')}</a>`;
-      await ctx.editMessageText(t(ctx.lang, 'wiz_posted', { link }), { parse_mode: 'HTML' });
+      const join = joinLines(config, ctx.lang);
+      const posted = t(ctx.lang, 'wiz_posted', { link });
+      await ctx.editMessageText(join ? `${posted}\n\n${join}` : posted, { parse_mode: 'HTML' });
     } catch (err) {
       if (err instanceof ApiError && err.code === 'subscription_required') {
         await ctx.editMessageText(t(ctx.lang, 'wiz_subscription_required'));

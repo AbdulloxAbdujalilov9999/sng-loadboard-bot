@@ -6,7 +6,7 @@
 // web app or from /postload here, since both go through the same `loads` table and the same
 // `publish()` call in server/src/events.js.
 import pg from 'pg';
-import { formatLoadMessage, escapeHtml } from './format.js';
+import { formatLoadMessage, escapeHtml, joinLines } from './format.js';
 import { t } from './i18n.js';
 
 const CHANNEL = 'sng_events';
@@ -134,7 +134,8 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     // backs it, see server/src/routes/loads.js); clicking it works for anyone with board access,
     // independent of whoever posted it or whichever group it landed in.
     const linkUrl = config.webUrlIsPublic === false ? null : `${config.webBaseUrl}/?load=${row.id}`; // never broadcast a dead (internal) address
-    const text = formatLoadMessage(row, config.broadcastLang, linkUrl);
+    const join = joinLines(config, config.broadcastLang);
+    const text = formatLoadMessage(row, config.broadcastLang, linkUrl) + (join ? `\n\n${join}` : '');
     queue = queue.then(async () => {
       try {
         await sendToAllChats(text);

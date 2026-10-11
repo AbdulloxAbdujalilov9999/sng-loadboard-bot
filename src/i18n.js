@@ -131,6 +131,9 @@ const DICT = {
     myloads_cancelled: 'Kept - not deleted.',
     myloads_deleted: '✅ Deleted - removed from the board and from every chat it was sent to.',
     myloads_delete_failed: 'Could not delete - please try again later.',
+
+    join_channel: '📢 Channel: {handle}',
+    join_group: '💬 Group: {handle}',
   },
 
   ru: {
@@ -255,6 +258,9 @@ const DICT = {
     myloads_cancelled: 'Оставлено - не удалено.',
     myloads_deleted: '✅ Удалено - убрано с биржи и из всех чатов, куда было отправлено.',
     myloads_delete_failed: 'Не удалось удалить - попробуйте позже.',
+
+    join_channel: '📢 Канал: {handle}',
+    join_group: '💬 Группа: {handle}',
   },
 
   uz: {
@@ -379,6 +385,9 @@ const DICT = {
     myloads_cancelled: "Qoldirildi - o'chirilmadi.",
     myloads_deleted: "✅ O'chirildi - birjadan va yuborilgan barcha chatlardan olib tashlandi.",
     myloads_delete_failed: "O'chirib bo'lmadi - keyinroq qayta urinib ko'ring.",
+
+    join_channel: '📢 Kanal: {handle}',
+    join_group: '💬 Guruh: {handle}',
   },
 };
 

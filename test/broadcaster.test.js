@@ -45,6 +45,28 @@ test('a new load is sent to every active chat, with its own link to the web boar
   assert.deepEqual(removed, [222]); // and was dropped from the chat list
 });
 
+test('invites the configured channel/group on every broadcast when BOT_JOIN_CHANNEL/GROUP are set', async () => {
+  const pool = { query: async (sql) => (sql.includes('FROM loads') ? { rows: [ROW] } : { rows: [] }) };
+  const sent = [];
+  const store = {
+    listActiveChatIds: async () => [111],
+    markChatRemoved: async () => {},
+    getTelegramUserIdByMemberId: async () => null,
+    saveSentMessage: async () => {}, listSentMessages: async () => [], deleteSentMessages: async () => {},
+  };
+  const bot = { telegram: { sendMessage: async (chatId, text) => { sent.push({ chatId, text }); return { message_id: 1 }; } } };
+  const broadcaster = makeBroadcaster({
+    config: {
+      databaseUrl: 'x', broadcastSpacingMs: 0, broadcastLang: 'en', webBaseUrl: 'https://sng.example',
+      joinChannel: 'sngOne_yuklar', joinGroup: 'sngOne_yuklarr',
+    },
+    pool, store, bot, log: { warn() {}, error() {} },
+  });
+  await broadcaster._handleEvent({ entity: 'loads', op: 'insert', id: 1 });
+  assert.match(sent[0].text, /📢 Channel: @sngOne_yuklar/);
+  assert.match(sent[0].text, /💬 Group: @sngOne_yuklarr/);
+});
+
 test('ignores events that are not a load insert', async () => {
   const { broadcaster, sent } = makeFixture();
   await broadcaster._handleEvent({ entity: 'loads', op: 'update', id: 1 });

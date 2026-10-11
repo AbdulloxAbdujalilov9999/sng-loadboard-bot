@@ -9,7 +9,7 @@ import { NotLinkedError } from './tokens.js';
 import { makePostLoadScene } from './wizard.js';
 import { makeLinkScene, linkFailureText, normalizePhone, performLink } from './linkScene.js';
 import { OWN_PREFIX } from './tokens.js';
-import { escapeHtml } from './format.js';
+import { escapeHtml, joinLines } from './format.js';
 import { makeLangManager } from './lang.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
@@ -43,8 +43,14 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     }
   });
 
-  bot.start((ctx) => ctx.reply(t(ctx.lang, 'welcome')));
-  bot.help((ctx) => ctx.reply(t(ctx.lang, 'welcome')));
+  // Our own official channel/group (BOT_JOIN_CHANNEL/BOT_JOIN_GROUP), appended whenever set - see
+  // format.js's joinLines.
+  const welcomeText = (lang) => {
+    const join = joinLines(config, lang);
+    return join ? `${t(lang, 'welcome')}\n\n${join}` : t(lang, 'welcome');
+  };
+  bot.start((ctx) => ctx.reply(welcomeText(ctx.lang)));
+  bot.help((ctx) => ctx.reply(welcomeText(ctx.lang)));
 
   bot.command('language', async (ctx) => {
     await ctx.reply(t(ctx.lang, 'language_prompt'), Markup.inlineKeyboard(

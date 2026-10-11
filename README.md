@@ -46,6 +46,10 @@ a second bot" below.
   while every DM follows that person's own choice. City names themselves are not translated - they
   are stored once per load (the same value the web app shows in every UI language), so whichever
   language you pick, city names keep their original spelling.
+- **Invites our own channel/group**: set `BOT_JOIN_CHANNEL`/`BOT_JOIN_GROUP` (no leading `@`
+  needed) and the bot appends a line inviting people to join both - in the welcome message, the
+  `/postload` confirmation, and every broadcast message (see `src/format.js`'s `joinLines`). Leave
+  either blank to omit it.
 
 ### How it works
 
