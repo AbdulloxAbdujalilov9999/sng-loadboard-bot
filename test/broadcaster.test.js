@@ -84,6 +84,25 @@ test('also sends the load to the poster\'s own linked Telegram chat', async () =
   assert.deepEqual(sent.map((s) => s.chatId), [111, 999]); // the group, then the poster's own DM
 });
 
+test('group/channel broadcasts are never tracked, so closing a load never deletes them from a group', async () => {
+  const pool = { query: async (sql) => (sql.includes('FROM loads') ? { rows: [{ ...ROW, owner_id: 42 }] } : { rows: [] }) };
+  const tracked = [];
+  const store = {
+    listActiveChatIds: async () => [111, 222],
+    markChatRemoved: async () => {},
+    getTelegramUserIdByMemberId: async (memberId) => (memberId === 42 ? 999 : null),
+    saveSentMessage: async ({ chatId }) => tracked.push(chatId),
+    listSentMessages: async () => [], deleteSentMessages: async () => {},
+  };
+  const bot = { telegram: { sendMessage: async () => ({ message_id: 1 }) } };
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: 'x', broadcastSpacingMs: 0, broadcastLang: 'en', webBaseUrl: 'https://sng.example' },
+    pool, store, bot, log: { warn() {}, error() {} },
+  });
+  await broadcaster._handleEvent({ entity: 'loads', op: 'insert', id: 1 });
+  assert.deepEqual(tracked, [999]); // only the poster's own chat is remembered, never the groups (111, 222)
+});
+
 test('a closed/removed load is deleted from every chat it was sent to', async () => {
   const deletedFrom = [];
   const deletedCalls = [];

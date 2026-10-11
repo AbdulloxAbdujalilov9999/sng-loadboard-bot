@@ -38,9 +38,35 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     }
   }
 
-  // Sends one message and remembers (load, chat) -> message id, so handleDelete() can pull it back
-  // out of that chat later if the load is closed/removed (see telegram_load_messages).
-  async function sendAndTrack(loadId, chatId, text) {
+  // Shared error handling for a send to any chat (group or DM): Telegram throttling is already
+  // retried inside sendWithRetry; this only deals with the chat having gone away entirely.
+  async function handleSendError(err, chatId) {
+    const code = err?.response?.error_code;
+    const gone = /chat not found|kicked|not a member|deactivated/i.test(err?.response?.description ?? err.message ?? '');
+    // 403 = bot was removed/blocked without us hearing a my_chat_member update; stop posting there.
+    if (code === 403 || (code === 400 && gone)) await store.markChatRemoved(chatId).catch(() => {});
+    else log.warn?.(`broadcast to ${chatId} failed: ${err.message}`) ?? console.warn(`broadcast to ${chatId} failed: ${err.message}`);
+  }
+
+  // Broadcasts to a group/channel are fire-and-forget - deliberately NOT remembered in
+  // telegram_load_messages, so closing/removing the load later never reaches back into a group or
+  // channel to delete anything there (members may already be relying on seeing it, even once it's
+  // no longer active - unlike the poster's own chat, see sendToOwner below).
+  async function sendToAllChats(text) {
+    const chatIds = await store.listActiveChatIds();
+    for (const chatId of chatIds) {
+      try { await sendWithRetry(chatId, text); } catch (err) { await handleSendError(err, chatId); }
+      if (config.broadcastSpacingMs > 0) await sleep(config.broadcastSpacingMs);
+    }
+  }
+
+  // The poster gets their own load in their own chat too, same message every group gets - only if
+  // they've ever linked their Telegram account (store.getTelegramUserIdByMemberId returns null
+  // otherwise). This one IS tracked: it's the poster's own chat, so pulling it back out when they
+  // close/remove the load (see handleDelete) is tidying up after them, not touching anyone else's chat.
+  async function sendToOwner(loadId, ownerMemberId, text) {
+    const chatId = await store.getTelegramUserIdByMemberId(ownerMemberId);
+    if (!chatId) return;
     try {
       const sent = await sendWithRetry(chatId, text);
       if (sent?.message_id != null) {
@@ -48,33 +74,15 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
           .catch((err) => log.warn?.(`tracking message for load ${loadId} in ${chatId} failed: ${err.message}`));
       }
     } catch (err) {
-      const code = err?.response?.error_code;
-      const gone = /chat not found|kicked|not a member|deactivated/i.test(err?.response?.description ?? err.message ?? '');
-      // 403 = bot was removed/blocked without us hearing a my_chat_member update; stop posting there.
-      if (code === 403 || (code === 400 && gone)) await store.markChatRemoved(chatId).catch(() => {});
-      else log.warn?.(`broadcast to ${chatId} failed: ${err.message}`) ?? console.warn(`broadcast to ${chatId} failed: ${err.message}`);
+      await handleSendError(err, chatId);
     }
-  }
-
-  async function sendToAllChats(loadId, text) {
-    const chatIds = await store.listActiveChatIds();
-    for (const chatId of chatIds) {
-      await sendAndTrack(loadId, chatId, text);
-      if (config.broadcastSpacingMs > 0) await sleep(config.broadcastSpacingMs);
-    }
-  }
-
-  // The poster gets their own load in their own chat too, same message every group gets - only if
-  // they've ever linked their Telegram account (store.getTelegramUserIdByMemberId returns null otherwise).
-  async function sendToOwner(loadId, ownerMemberId, text) {
-    const chatId = await store.getTelegramUserIdByMemberId(ownerMemberId);
-    if (chatId) await sendAndTrack(loadId, chatId, text);
   }
 
   // The load was closed/removed (DELETE /api/loads/:id, from the web app, /postload... or /myloads
-  // below): pull its messages back out of every chat it reached. Telegram refuses to delete a
-  // message once it's more than 48h old (or already gone) - nothing more to do there, but the row
-  // is forgotten regardless so this never retries forever.
+  // below): pull it back out of the poster's own chat (see sendToOwner - groups/channels are never
+  // tracked here, so this never touches them). Telegram refuses to delete a message once it's more
+  // than 48h old (or already gone) - nothing more to do there, but the row is forgotten regardless
+  // so this never retries forever.
   async function handleDelete(loadId) {
     const sent = await store.listSentMessages(loadId);
     for (const { chat_id: chatId, message_id: messageId } of sent) {
@@ -129,7 +137,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     const text = formatLoadMessage(row, config.broadcastLang, linkUrl);
     queue = queue.then(async () => {
       try {
-        await sendToAllChats(row.id, text);
+        await sendToAllChats(text);
         await sendToOwner(row.id, row.owner_id, text);
       } catch (err) {
         log.error?.(`broadcast failed: ${err.message}`) ?? console.error(`broadcast failed: ${err.message}`);

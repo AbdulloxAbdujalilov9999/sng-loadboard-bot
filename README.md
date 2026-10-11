@@ -38,8 +38,8 @@ a second bot" below.
   gets.
 - **`/myloads`**: lists everything you've posted, each with a Delete button (with a Yes/No confirm
   step). Deleting calls the same `DELETE /api/loads/:id` the web app's "Remove" button uses, which
-  also pulls that load's messages back out of every group/DM it was broadcast to (see "Deleting a
-  load" below).
+  also pulls that load's message back out of your own chat with the bot - but deliberately leaves
+  it posted in every group/channel it was broadcast to (see "Deleting a load" below).
 - **English, Russian, Uzbek**: the same three languages the web app offers (`src/i18n.js`).
   Auto-detected from Telegram's own client language on first contact; `/language` switches it.
   Groups get one fixed language for broadcasts (`BOT_BROADCAST_LANG`, since a group mixes people),
@@ -82,13 +82,19 @@ handler in `src/wizard.js` (the poster gets the same link as everyone else).
 
 ### Deleting a load
 
-Every message the broadcaster sends - to a group or to the poster's own chat - is remembered in
-`telegram_load_messages` (`load_id`, `chat_id`, `message_id`; see `017_telegram_load_messages.sql`).
-When a load is closed/removed (the web app's "Remove" button, or `/myloads`'s Delete button here -
-both end up at the same `DELETE /api/loads/:id`), the API publishes a `loads`/`delete` event; the
-broadcaster reacts by deleting those exact messages from every chat they reached, then forgets the
-rows. Telegram refuses to delete a message once it is more than 48h old (or already gone) - nothing
-more to do there, but the row is forgotten regardless so this never retries forever.
+Closing/removing a load (the web app's "Remove" button, or `/myloads`'s Delete button here - both
+end up at the same `DELETE /api/loads/:id`) only pulls it back out of the **poster's own chat**
+with the bot - it is deliberately left posted in every group/channel it was broadcast to. Group
+and channel broadcasts are fire-and-forget on purpose: by the time a load closes, people may
+already be relying on having seen it, and silently vanishing a message a group has already reacted
+to would be more confusing than leaving it up.
+
+Only the poster's own copy is remembered, in `telegram_load_messages` (`load_id`, `chat_id`,
+`message_id`; see `017_telegram_load_messages.sql` - `src/broadcaster.js`'s `sendToOwner` is the
+only thing that writes to it). When the load closes, the API publishes a `loads`/`delete` event;
+the broadcaster deletes that one tracked message (if any) and forgets the row. Telegram refuses to
+delete a message once it is more than 48h old (or already gone) - nothing more to do there, but the
+row is forgotten regardless so this never retries forever.
 
 ### Setup
 
