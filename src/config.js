@@ -31,6 +31,12 @@ export function loadBotConfig(env = process.env) {
     // Stored without the leading "@" (stripped if given) so there's never a double "@@".
     joinChannel: (env.BOT_JOIN_CHANNEL || '').replace(/^@/, ''),
     joinGroup: (env.BOT_JOIN_GROUP || '').replace(/^@/, ''),
+    // /paste: how many /api/ai/parse-loads calls this process makes per minute at most, independent
+    // of how many members paste at once - keeps it well under the server's per-member hourly AI
+    // budget and Gemini's own rate limits even if several members paste in the same minute.
+    aiMaxPerMin: Number(env.AI_PASTE_MAX_PER_MIN || 20),
+    // /paste: how long (minutes) a parsed batch's Publish/Skip buttons stay valid before expiring.
+    pendingTtlMin: Number(env.PASTE_PENDING_TTL_MIN || 15),
   };
   const problems = [];
   // Links in broadcasts are clicked by people on the internet. An internal/localhost address would be a dead

@@ -58,3 +58,58 @@ export function joinLines(config, lang = 'en') {
   if (config.joinGroup) lines.push(t(lang, 'join_group', { handle: at(config.joinGroup) }));
   return lines.join('\n');
 }
+
+// ---------------------------------------------------------------- /paste (AI import review)
+const FLAG_ORDER = ['origin', 'dest', 'same_city', 'origin_check', 'dest_check', 'weight', 'date', 'rate'];
+// Flags that mean "could not resolve a city" - these drafts are excluded from posting (the API
+// would reject the whole bulk batch otherwise) and listed separately so the member can fix the
+// wording and paste that one load again.
+const BLOCKING_FLAGS = new Set(['origin', 'dest', 'same_city']);
+
+/** Whether a parsed draft has everything POST /api/loads (or /bulk) needs to accept it. */
+export function isDraftPostable(draft) {
+  return Boolean(draft.originCityId) && Boolean(draft.destCityId) && draft.originCityId !== draft.destCityId;
+}
+
+/** A draft (camelCase, from /api/ai/parse-loads, possibly mid-edit) as the snake_case row
+ * formatLoadMessage expects - with the member's own contact as the shown fallback, exactly what
+ * would actually be posted. */
+export function draftToRow(draft, member) {
+  return {
+    origin_city: draft.originCity || draft.originText || '?',
+    dest_city: draft.destCity || draft.destText || '?',
+    equip: draft.equip, fp: draft.fp, weight_t: draft.weightT, volume_m3: draft.volumeM3,
+    commodity: draft.commodity, pickup_date: draft.pickupDate, delivery_date: null, distance_km: null,
+    rate_usd: draft.rateUsd, notes: draft.notes,
+    company_name: member.company,
+    contact_name: draft.contactName || member.contactName || member.company || '-',
+    contact_phone: draft.contactPhone || member.phone || '',
+    contact_email: member.contactEmail || '',
+    contact_tg: draft.contactTelegram || member.telegram || '',
+  };
+}
+
+function flagText(lang, flag) {
+  const key = `flag_${flag}`;
+  const s = t(lang, key);
+  return s === key ? null : s;
+}
+
+/** The per-draft review block for /paste: the same message shape it would be posted/broadcast as,
+ * plus a number, a 🚫/⚠️ status line for anything the AI had to guess or couldn't resolve, and -
+ * once acted on - a one-line outcome instead of the live preview. */
+export function formatDraftBlock(draft, idx, lang, member) {
+  if (draft.status === 'posted') return `#${idx} ✅ ${escapeHtml(draft.originCity || draft.originText)} → ${escapeHtml(draft.destCity || draft.destText)} — ${t(lang, 'draft_published')}`;
+  if (draft.status === 'skipped') return `#${idx} ⏭ ${escapeHtml(draft.originCity || draft.originText)} → ${escapeHtml(draft.destCity || draft.destText)} — ${t(lang, 'draft_skipped')}`;
+
+  const postable = isDraftPostable(draft);
+  const body = formatLoadMessage(draftToRow(draft, member), lang);
+  const flags = (draft.flags ?? []).filter((f) => FLAG_ORDER.includes(f)).sort((a, b) => FLAG_ORDER.indexOf(a) - FLAG_ORDER.indexOf(b));
+  const blocking = flags.filter((f) => BLOCKING_FLAGS.has(f)).map((f) => flagText(lang, f)).filter(Boolean);
+  const warnings = flags.filter((f) => !BLOCKING_FLAGS.has(f)).map((f) => flagText(lang, f)).filter(Boolean);
+  const tail = [];
+  if (blocking.length) tail.push(`🚫 <i>${blocking.join(' · ')}</i>`);
+  if (warnings.length) tail.push(`⚠️ <i>${warnings.join(' · ')}</i>`);
+  const header = `<b>#${idx}${postable ? '' : ' 🚫'}</b>`;
+  return [header, body, ...tail].join('\n');
+}

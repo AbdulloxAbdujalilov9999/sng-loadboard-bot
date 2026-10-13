@@ -8,11 +8,51 @@ const FALLBACK_LANG = 'en';   // a key missing from a language falls back to Eng
 
 export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha' };
 
+// Telegram's own "/" command menu (bot.telegram.setMyCommands - see index.js). Registered once per
+// language at startup: `uz` with no language_code as the default, plus `ru`/`en` for clients set
+// to those languages.
+export const COMMANDS = {
+  uz: [
+    { command: 'start', description: 'Botni ishga tushirish' },
+    { command: 'link', description: 'Hisobni ulash (telefon + parol)' },
+    { command: 'linkemail', description: 'Hisobni ulash (e-pochta + parol)' },
+    { command: 'postload', description: 'Bitta yukni qoʻlda joylash' },
+    { command: 'paste', description: 'Yuk postini joylab, AI bilan ajratish' },
+    { command: 'myloads', description: 'Yuklarim roʻyxati va oʻchirish' },
+    { command: 'mystatus', description: 'Ulanishni tekshirish' },
+    { command: 'unlink', description: 'Hisobni uzish' },
+    { command: 'language', description: 'Bot tilini oʻzgartirish' },
+  ],
+  ru: [
+    { command: 'start', description: 'Запустить бота' },
+    { command: 'link', description: 'Привязать аккаунт (телефон + пароль)' },
+    { command: 'linkemail', description: 'Привязать аккаунт (e-mail + пароль)' },
+    { command: 'postload', description: 'Разместить один груз вручную' },
+    { command: 'paste', description: 'Вставить пост о грузе для разбора AI' },
+    { command: 'myloads', description: 'Список и удаление моих грузов' },
+    { command: 'mystatus', description: 'Проверить привязку аккаунта' },
+    { command: 'unlink', description: 'Отвязать аккаунт' },
+    { command: 'language', description: 'Сменить язык бота' },
+  ],
+  en: [
+    { command: 'start', description: 'Start the bot' },
+    { command: 'link', description: 'Link your account (phone + password)' },
+    { command: 'linkemail', description: 'Link your account (e-mail + password)' },
+    { command: 'postload', description: 'Post one load manually' },
+    { command: 'paste', description: 'Paste a freight post for AI import' },
+    { command: 'myloads', description: 'List and delete my loads' },
+    { command: 'mystatus', description: 'Check your link' },
+    { command: 'unlink', description: 'Unlink your account' },
+    { command: 'language', description: "Change the bot's language" },
+  ],
+};
+
 const DICT = {
   en: {
     welcome: "Welcome to SNG ONE.\n\n"
       + "• /link - connect your SNG ONE account with your phone number and password (DM only)\n"
       + "• /postload - post a load here; it appears on the web board and is broadcast to every group this bot is in\n"
+      + "• /paste - paste or forward a freight post (one or many loads) and let AI split it into loads to review and publish\n"
       + "• /myloads - list and delete your own loads\n"
       + "• /mystatus - check your link\n"
       + "• /unlink - disconnect your account\n"
@@ -134,12 +174,48 @@ const DICT = {
 
     join_channel: '📢 Channel: {handle}',
     join_group: '💬 Group: {handle}',
+
+    paste_cmd_hint: "Paste or forward the freight post right here (next message) - Russian or Uzbek, one load or many, any layout - and I'll split it into drafts you can review and publish.",
+    paste_parsing: '🤖 Reading that text…',
+    paste_ai_unavailable: 'AI import is not set up on the server yet - ask the platform owner to set GEMINI_API_KEY.',
+    paste_ai_busy: "The AI import is busy or you've hit your hourly limit - please try again in a bit.",
+    paste_bad_output: 'The AI answered in an unexpected format - please try again.',
+    paste_no_loads_found: "I didn't find any loads in that text. Paste a freight post (route, truck type, cargo, dates) and I'll split it up.",
+    paste_truncated_note: '(only the first {max} loads in that text were read - paste the rest separately)',
+    paste_found_header: '📦 Found {count} load(s) in that text:',
+    paste_expired: 'This batch expired - please paste the text again.',
+
+    btn_publish: '✅ Publish', btn_edit: '✏️ Edit', btn_skip: '🚫 Skip', btn_back: '⬅️ Back',
+    btn_publish_all: '📢 Publish all ({count})', btn_cancel_all: '❌ Cancel the rest',
+    field_originCity: 'Origin', field_destCity: 'Destination', field_equip: 'Truck type', field_fp: 'Full/Partial',
+    field_weight: 'Weight', field_date: 'Date', field_rate: 'Rate', field_commodity: 'Cargo',
+    field_cname: 'Contact name', field_cphone: 'Contact phone', field_ctg: 'Contact Telegram', field_notes: 'Notes',
+    batch_status: '{pending} pending ({postable} ready to publish) · {posted} published · {skipped} skipped.',
+    batch_done: 'Done: {posted} published, {skipped} skipped.',
+    draft_published: 'published', draft_skipped: 'skipped',
+    cb_unresolved: "This one's city couldn't be matched - use Edit to fix it or Skip it.",
+    cb_need_contact: 'No phone/Telegram to show for this load - add one with Edit, or set one in your profile.',
+    cb_none_ready: 'Nothing is ready to publish right now.',
+    edit_pick_field: 'What do you want to change?',
+    edit_ask_city: 'Type the city name.', edit_ask_weight: 'Type the weight in tons, e.g. 20.',
+    edit_ask_date: 'Type the pickup date, YYYY-MM-DD.', edit_ask_rate: 'Type the rate in USD (or - for negotiable).',
+    edit_ask_commodity: 'Type the cargo description.', edit_ask_notes: 'Type the new notes (or - to clear).',
+    edit_ask_cname: 'Type the contact name.', edit_ask_cphone: 'Type the contact phone (or - to clear).',
+    edit_ask_ctg: 'Type the contact Telegram @username (or - to clear).',
+    edit_city_set: 'Set to {label}.',
+    flag_origin: 'origin city not recognized', flag_dest: 'destination city not recognized',
+    flag_same_city: 'origin and destination look the same',
+    flag_origin_check: 'origin city is a guess - please verify', flag_dest_check: 'destination city is a guess - please verify',
+    flag_weight: 'weight was not stated - defaulted to 20t',
+    flag_date: 'pickup date was not stated or already passed - defaulted to today',
+    flag_rate: 'rate was not stated - posted as negotiable',
   },
 
   ru: {
     welcome: 'Добро пожаловать в SNG ONE.\n\n'
       + "• /link - привязать аккаунт SNG ONE по номеру телефона и паролю (только в личных сообщениях)\n"
       + '• /postload - разместить груз прямо здесь; он появится на сайте и будет разослан во все группы, где есть этот бот\n'
+      + '• /paste - вставьте или перешлите пост о грузе (один или несколько) - AI разберёт его на грузы для проверки и публикации\n'
       + '• /myloads - список и удаление ваших грузов\n'
       + '• /mystatus - проверить привязку аккаунта\n'
       + '• /unlink - отвязать аккаунт\n'
@@ -261,12 +337,49 @@ const DICT = {
 
     join_channel: '📢 Канал: {handle}',
     join_group: '💬 Группа: {handle}',
+
+    paste_cmd_hint: 'Вставьте или перешлите пост о грузе прямо сюда (следующим сообщением) - на русском или узбекском, один груз или несколько, в любом виде - я разберу его на черновики для проверки и публикации.',
+    paste_parsing: '🤖 Читаю текст…',
+    paste_ai_unavailable: 'AI-импорт пока не настроен на сервере - попросите владельца платформы задать GEMINI_API_KEY.',
+    paste_ai_busy: 'AI-импорт сейчас занят, либо вы достигли часового лимита - попробуйте немного позже.',
+    paste_bad_output: 'AI ответил в неожиданном формате - попробуйте ещё раз.',
+    paste_no_loads_found: 'Я не нашёл грузов в этом тексте. Вставьте пост о грузе (маршрут, тип машины, груз, даты), и я разберу его.',
+    paste_truncated_note: '(прочитаны только первые {max} грузов из текста - остальное вставьте отдельно)',
+    paste_found_header: '📦 Найдено {count} груз(ов) в этом тексте:',
+    paste_expired: 'Эта подборка устарела - вставьте текст снова.',
+
+    btn_publish: '✅ Опубликовать', btn_edit: '✏️ Изменить', btn_skip: '🚫 Пропустить', btn_back: '⬅️ Назад',
+    btn_publish_all: '📢 Опубликовать все ({count})', btn_cancel_all: '❌ Отменить остальные',
+    field_originCity: 'Откуда', field_destCity: 'Куда', field_equip: 'Тип транспорта', field_fp: 'Полная/частичная',
+    field_weight: 'Вес', field_date: 'Дата', field_rate: 'Ставка', field_commodity: 'Груз',
+    field_cname: 'Имя контакта', field_cphone: 'Телефон', field_ctg: 'Telegram', field_notes: 'Примечания',
+    batch_status: '{pending} в ожидании ({postable} готовы к публикации) · {posted} опубликовано · {skipped} пропущено.',
+    batch_done: 'Готово: {posted} опубликовано, {skipped} пропущено.',
+    draft_published: 'опубликован', draft_skipped: 'пропущен',
+    cb_unresolved: 'Город этого груза не распознан - исправьте через «Изменить» или пропустите.',
+    cb_need_contact: 'Нет телефона/Telegram для этого груза - добавьте через «Изменить» или укажите в профиле.',
+    cb_none_ready: 'Сейчас нечего публиковать.',
+    edit_pick_field: 'Что изменить?',
+    edit_ask_city: 'Введите название города.', edit_ask_weight: 'Введите вес в тоннах, например 20.',
+    edit_ask_date: 'Введите дату погрузки, ГГГГ-ММ-ДД.', edit_ask_rate: 'Введите ставку в USD (или - для договорной).',
+    edit_ask_commodity: 'Введите описание груза.', edit_ask_notes: 'Введите новые примечания (или - чтобы очистить).',
+    edit_ask_cname: 'Введите имя контактного лица.', edit_ask_cphone: 'Введите телефон (или - чтобы очистить).',
+    edit_ask_ctg: 'Введите Telegram @username (или - чтобы очистить).',
+    edit_city_set: 'Установлено: {label}.',
+    flag_origin: 'город отправления не распознан', flag_dest: 'город назначения не распознан',
+    flag_same_city: 'отправление и назначение похожи на один и тот же город',
+    flag_origin_check: 'город отправления определён предположительно - проверьте',
+    flag_dest_check: 'город назначения определён предположительно - проверьте',
+    flag_weight: 'вес не указан - поставлено 20т по умолчанию',
+    flag_date: 'дата погрузки не указана или уже прошла - поставлена сегодняшняя',
+    flag_rate: 'ставка не указана - опубликовано как «договорная»',
   },
 
   uz: {
     welcome: "SNG ONE'ga xush kelibsiz.\n\n"
       + "• /link - SNG ONE hisobingizni telefon raqami va parol bilan ulash (faqat shaxsiy xabarda)\n"
       + '• /postload - shu yerda yuk joylash; u saytda paydo boʻladi va bot qoʻshilgan barcha guruhlarga yuboriladi\n'
+      + "• /paste - yuk postini (bitta yoki bir nechta) joylang yoki forward qiling - AI ularni ko'rib chiqish va joylash uchun ajratadi\n"
       + "• /myloads - yuklaringiz roʻyxati va oʻchirish\n"
       + '• /mystatus - ulanishni tekshirish\n'
       + '• /unlink - hisobni uzish\n'
@@ -388,6 +501,42 @@ const DICT = {
 
     join_channel: '📢 Kanal: {handle}',
     join_group: '💬 Guruh: {handle}',
+
+    paste_cmd_hint: "Yuk postini shu yerga joylang yoki forward qiling (keyingi xabar) - ruscha yoki o'zbekcha, bitta yoki bir nechta yuk, qanday formatda bo'lsa ham - men uni ko'rib chiqish va joylash uchun qoralamalarga ajrataman.",
+    paste_parsing: '🤖 Matnni oʻqiyapman…',
+    paste_ai_unavailable: 'AI import hali serverda sozlanmagan - platforma egasidan GEMINI_API_KEY ni sozlashini soʻrang.',
+    paste_ai_busy: 'AI import hozir band, yoki soatlik limitingizga yetdingiz - birozdan soʻng qayta urinib koʻring.',
+    paste_bad_output: 'AI kutilmagan formatda javob berdi - qayta urinib koʻring.',
+    paste_no_loads_found: "Bu matnda yuk topa olmadim. Yuk posti joylang (yoʻnalish, mashina turi, yuk, sanalar) - men ajratib beraman.",
+    paste_truncated_note: '(bu matndan faqat birinchi {max} ta yuk oʻqildi - qolganini alohida joylang)',
+    paste_found_header: '📦 Bu matndan {count} ta yuk topildi:',
+    paste_expired: 'Bu toʻplam eskirdi - matnni qayta joylang.',
+
+    btn_publish: '✅ Joylash', btn_edit: '✏️ Oʻzgartirish', btn_skip: '🚫 Oʻtkazib yuborish', btn_back: '⬅️ Orqaga',
+    btn_publish_all: '📢 Barchasini joylash ({count})', btn_cancel_all: '❌ Qolganini bekor qilish',
+    field_originCity: "Qayerdan", field_destCity: 'Qayerga', field_equip: 'Transport turi', field_fp: "Toʻliq/qisman",
+    field_weight: "Og'irlik", field_date: 'Sana', field_rate: 'Narx', field_commodity: 'Yuk',
+    field_cname: 'Aloqa ismi', field_cphone: 'Telefon', field_ctg: 'Telegram', field_notes: 'Izoh',
+    batch_status: "{pending} ta kutilmoqda ({postable} tasi joylashga tayyor) · {posted} ta joylandi · {skipped} tasi oʻtkazib yuborildi.",
+    batch_done: "Tayyor: {posted} ta joylandi, {skipped} tasi oʻtkazib yuborildi.",
+    draft_published: 'joylandi', draft_skipped: "oʻtkazib yuborildi",
+    cb_unresolved: "Bu yukning shahri aniqlanmadi - «Oʻzgartirish» orqali tuzating yoki oʻtkazib yuboring.",
+    cb_need_contact: "Bu yuk uchun telefon/Telegram yoʻq - «Oʻzgartirish» orqali qoʻshing yoki profilingizga qoʻshing.",
+    cb_none_ready: 'Hozir joylash uchun hech narsa yoʻq.',
+    edit_pick_field: 'Nimani oʻzgartirmoqchisiz?',
+    edit_ask_city: 'Shahar nomini yozing.', edit_ask_weight: "Og'irlikni tonnada yozing, masalan 20.",
+    edit_ask_date: 'Olib ketish sanasini yozing, YYYY-MM-DD.', edit_ask_rate: 'Narxni USD da yozing (yoki kelishilgan uchun -).',
+    edit_ask_commodity: 'Yuk tasvirini yozing.', edit_ask_notes: "Yangi izohni yozing (tozalash uchun -).",
+    edit_ask_cname: 'Aloqa uchun ismni yozing.', edit_ask_cphone: 'Telefon raqamini yozing (tozalash uchun -).',
+    edit_ask_ctg: 'Telegram @username ni yozing (tozalash uchun -).',
+    edit_city_set: '{label} qilib qoʻyildi.',
+    flag_origin: "jo'natish shahri aniqlanmadi", flag_dest: "manzil shahri aniqlanmadi",
+    flag_same_city: "jo'natish va manzil bir xil shaharga o'xshaydi",
+    flag_origin_check: "jo'natish shahri taxminan aniqlandi - tekshiring",
+    flag_dest_check: "manzil shahri taxminan aniqlandi - tekshiring",
+    flag_weight: "og'irlik ko'rsatilmagan - standart 20t qo'yildi",
+    flag_date: "olib ketish sanasi ko'rsatilmagan yoki o'tib ketgan - bugungi sana qo'yildi",
+    flag_rate: "narx ko'rsatilmagan - \"kelishilgan\" deb joylandi",
   },
 };
 

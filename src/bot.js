@@ -11,6 +11,7 @@ import { makeLinkScene, linkFailureText, normalizePhone, performLink } from './l
 import { OWN_PREFIX } from './tokens.js';
 import { escapeHtml, joinLines } from './format.js';
 import { makeLangManager } from './lang.js';
+import { makePasteFlow } from './pasteFlow.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -20,6 +21,7 @@ const loginOf = (identity) => (/^p\d+@phone\.sng$/.test(identity) ? `+${identity
 export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const bot = new Telegraf(config.botToken);
   const lang = makeLangManager({ store });
+  const pasteFlow = makePasteFlow({ apiClient, tokens, config });
 
   bot.use(session());
   bot.use(async (ctx, next) => { ctx.lang = await lang.getLang(ctx); return next(); });
@@ -229,6 +231,28 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     } catch {
       await ctx.editMessageText(t(ctx.lang, 'myloads_delete_failed'));
     }
+  });
+
+  // ---- /paste: AI import, same /api/ai/parse-loads the web app's paste screen uses ----
+  // /paste itself doesn't carry the text (commands and long pasted posts don't mix well in
+  // Telegram) - it's just a discoverable hint pointing at what already works for any plain
+  // message: paste or forward the text right after.
+  bot.command('paste', (ctx) => ctx.reply(t(ctx.lang, 'paste_cmd_hint')));
+  // pd = per-draft action (publish/edit/skip/back), pf = pick a field to edit, pv = set an enum
+  // field's value directly, pc = pick a city search result, pa = batch action (publish all / cancel all).
+  bot.action(/^pd:([0-9a-f]+):(\d+):(pub|skip|edit|back)$/, (ctx) => pasteFlow.onDraftAction(ctx, ctx.match[1], Number(ctx.match[2]), ctx.match[3]));
+  bot.action(/^pf:([0-9a-f]+):(\d+):(\w+)$/, (ctx) => pasteFlow.onFieldPick(ctx, ctx.match[1], Number(ctx.match[2]), ctx.match[3]));
+  bot.action(/^pv:([0-9a-f]+):(\d+):(equip|fp):(\w+)$/, (ctx) => pasteFlow.onEnumValue(ctx, ctx.match[1], Number(ctx.match[2]), ctx.match[3], ctx.match[4]));
+  bot.action(/^pc:([0-9a-f]+):(\d+):(originCity|destCity):(\d+)$/, (ctx) => pasteFlow.onCityPick(ctx, ctx.match[1], Number(ctx.match[2]), ctx.match[3], ctx.match[4]));
+  bot.action(/^pa:([0-9a-f]+):(all|cancel)$/, (ctx) => pasteFlow.onBatchAction(ctx, ctx.match[1], ctx.match[2]));
+
+  // Any plain text in DM that wasn't a command and isn't inside a scene (e.g. /link, /postload) is
+  // treated as a pasted/forwarded freight post, or as the answer to a field edit in progress - see
+  // pasteFlow.handleText. This has to be the LAST text handler registered - commands and the
+  // active scene above get first refusal.
+  bot.on('text', (ctx) => {
+    if (ctx.chat.type === 'private') return pasteFlow.handleText(ctx);
+    return undefined;
   });
 
   bot.catch((err, ctx) => {

@@ -35,6 +35,8 @@ export function makeApiClient({ baseUrl }) {
   // Same endpoint the web app's "paste from Telegram/WhatsApp" screen calls - see server/src/routes/ai.js.
   // Used by the ingest bot (ingestPipeline.js) to turn a group message into structured load drafts.
   const parseLoads = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-loads', { text });
+  // Up to 40 at once, all-or-nothing (server/src/routes/loads.js) - used by /paste's "Publish all" button.
+  const createLoadsBulk = (idToken, loads) => request(idToken, 'POST', '/api/loads/bulk', { loads });
   // Used by /myloads (bot.js): everything this member has posted, so they can delete one from the chat.
   const listMine = (idToken) => request(idToken, 'GET', '/api/loads/mine');
   // Soft-close (server/src/routes/loads.js DELETE route) - the same call the web app's "Remove" button
@@ -47,5 +49,5 @@ export function makeApiClient({ baseUrl }) {
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, parseLoads, listMine, deleteLoad, pinLogin, refreshSession };
+  return { getMe, searchCities, createLoad, parseLoads, createLoadsBulk, listMine, deleteLoad, pinLogin, refreshSession };
 }
